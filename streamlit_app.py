@@ -9,22 +9,25 @@ import json
 # 1. Page Configuration
 st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
 
-# 2. Cloud Engine: Google Sheets Connection
+# 2. Cloud Engine: Optimized Connection
 def get_gsheet_client():
-    """Connects to Google Sheets using the TOML Secrets"""
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds_info = json.loads(st.secrets["gcp_service_account"])
     creds = Credentials.from_service_account_info(creds_info, scopes=scope)
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
-
-# PASTE YOUR UNIQUE SPREADSHEET ID HERE [cite: 2026-02-28]
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
-
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
+
+# --- PERFORMANCE CACHE: Prevents constant downloading ---
+@st.cache_data(ttl=60)
+def fetch_cloud_data():
+    p_list = ws_projects.col_values(1)[1:]
+    logs_df = pd.DataFrame(ws_logs.get_all_records())
+    return p_list, logs_df
 
 # 3. Tracker Logic (2026 ASD|SKY Calendar)
 def get_tracker_info(d):
@@ -38,7 +41,7 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Refined Architectural Layout & Blue Datum ---
+# --- CSS: Refined Architectural Layout ---
 st.markdown("""
     <style>
     .block-container { padding-top: 5rem; }
@@ -67,7 +70,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Sidebar: Project Registry (Cloud Sync)
+# 4. Sidebar: Project Registry
 with st.sidebar:
     st.title("📂 Register Projects")
     st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
@@ -79,6 +82,7 @@ with st.sidebar:
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
+                    st.cache_data.clear() # Force refresh on next run
                     st.rerun()
     
     st.divider()
@@ -87,37 +91,53 @@ with st.sidebar:
         search_reg = st.text_input("🔍 Filter Registry")
         st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
         
-        p_data = ws_projects.col_values(1)[1:] 
-        filtered_p = [p for p in p_data if search_reg.lower() in p.lower()]
+        project_list, all_logs = fetch_cloud_data()
+        filtered_p = [p for p in project_list if search_reg.lower() in p.lower()]
         
         for p_code in filtered_p:
             st.markdown('<div style="margin-bottom: 12px;">', unsafe_allow_html=True)
             col_c, col_d = st.columns([4, 1])
             col_c.write(f"**{p_code}**")
             if col_d.button("🗑️", key=f"reg_del_{p_code}"):
-                row_idx = p_data.index(p_code) + 2 
+                row_idx = project_list.index(p_code) + 2 
                 ws_projects.delete_rows(row_idx)
+                st.cache_data.clear()
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-# --- TAB 1: 5-DAY SCHEDULE (LIVE) ---
+# --- TAB 1: 5-DAY SCHEDULE ---
 tab_live, tab_recap, tab_search = st.tabs(["📋 5-Day Schedule (Live)", "📅 10-Day Recap", "🔍 Search Archive"])
 
-all_logs = pd.DataFrame(ws_logs.get_all_records())
+# FRAGMENT: Isolates input row logic to stop the "keystroke lag"
+@st.fragment
+def entry_row(sheet_row, entry, d_key, project_list):
+    c_p, c_t, c_h, c_s = st.columns([1.5, 3, 1.0, 0.5])
+    with c_p:
+        opts = project_list + ["PTO", "Holiday"]
+        new_p = st.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
+    with c_t:
+        new_t = st.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
+    with c_h:
+        new_h = st.number_input("Hrs", value=float(entry['hours']), step=0.5, key=f"h_{sheet_row}", label_visibility="collapsed")
+    
+    # "Baking" Logic: Only syncs when the row is modified
+    if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
+        with c_s:
+            if st.button("💾", key=f"save_{sheet_row}"):
+                ws_logs.update([[d_key, new_p, new_t, new_h]], f"A{sheet_row}")
+                st.cache_data.clear()
+                st.rerun()
 
 with tab_live:
     today = date.today()
     monday_this_week = today - timedelta(days=today.weekday())
     st.write(f"### Current Week: {monday_this_week.strftime('%b %d')} - {(monday_this_week + timedelta(days=4)).strftime('%b %d')}")
     
-    project_list = ws_projects.col_values(1)[1:]
-    
     for i in range(5):
         d = monday_this_week + timedelta(days=i)
         d_key = d.strftime("%Y-%m-%d")
         is_today = (d == today)
         payday, holiday_name = get_tracker_info(d)
-        
         day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
         
         with st.container(border=True):
@@ -125,30 +145,15 @@ with tab_live:
             date_display = d.strftime("%A, %b %d")
             if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
             
-            if payday:
-                st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
-            elif holiday_name:
-                st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
+            # Header Display
+            if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
+            elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
+            else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
 
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
 
             for idx, entry in day_entries.iterrows():
-                sheet_row = idx + 2 
-                c_p, c_t, c_h = st.columns([1.5, 3, 1.0])
-                with c_p:
-                    opts = project_list + ["PTO", "Holiday"]
-                    new_p = st.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
-                with c_t:
-                    new_t = st.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                with c_h:
-                    new_h = st.number_input("Hrs", value=float(entry['hours']), step=0.5, key=f"h_{sheet_row}", label_visibility="collapsed")
-
-                # FIXED: Swapped 'update_row' for the standard '.update()'
-                if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
-                    ws_logs.update([[d_key, new_p, new_t, new_h]], f"A{sheet_row}")
-                    st.rerun()
+                entry_row(idx + 2, entry, d_key, project_list)
 
             with st.popover(f"➕ Add Entry to {d.strftime('%a')}"):
                 if not project_list:
@@ -158,21 +163,20 @@ with tab_live:
                     h_val = (9.0 if i < 4 else 4.0) if day_entries.empty else 0.0
                     if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
                         ws_logs.append_row([d_key, project_list[0], '', h_val])
-                        st.rerun()
+                        st.cache_data.clear(); st.rerun()
                     if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
                         ws_logs.append_row([d_key, 'PTO', 'Personal Time Off', h_val])
-                        st.rerun()
+                        st.cache_data.clear(); st.rerun()
                     if col3.button("Holiday", key=f"add_h_{d_key}", use_container_width=True):
                         h_text = holiday_name if holiday_name else "Office Closed"
                         ws_logs.append_row([d_key, 'Holiday', h_text, h_val])
-                        st.rerun()
+                        st.cache_data.clear(); st.rerun()
                 if not day_entries.empty:
                     st.divider()
                     if st.button(f"🗑️ Clear all for {d.strftime('%a')}", key=f"clear_{d_key}", type="primary", use_container_width=True):
                         rows_to_del = day_entries.index.tolist()
-                        for r in reversed(rows_to_del):
-                            ws_logs.delete_rows(r + 2)
-                        st.rerun()
+                        for r in reversed(rows_to_del): ws_logs.delete_rows(r + 2)
+                        st.cache_data.clear(); st.rerun()
 
 # --- TABS 2 & 3: RECAP & ARCHIVE ---
 with tab_recap:
