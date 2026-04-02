@@ -20,7 +20,7 @@ def get_gsheet_client():
 client = get_gsheet_client()
 
 # PASTE YOUR UNIQUE SPREADSHEET ID HERE [cite: 2026-02-28]
-SHEET_ID = "PASTE_YOUR_LONG_ID_HERE" 
+SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0/edit?gid=1749521265#gid=1749521265" 
 
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
