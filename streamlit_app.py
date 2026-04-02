@@ -13,15 +13,16 @@ st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
 def get_gsheet_client():
     """Connects to Google Sheets using the TOML Secrets"""
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    # Parse the JSON string stored in Streamlit Secrets
     creds_info = json.loads(st.secrets["gcp_service_account"])
     creds = Credentials.from_service_account_info(creds_info, scopes=scope)
     return gspread.authorize(creds)
 
-# Initialize Client and Workbook
 client = get_gsheet_client()
-SHEET_NAME = "Task_Vault_Data" # Ensure your spreadsheet matches this name [cite: 2026-02-28]
-sh = client.open(SHEET_NAME)
+
+# PASTE YOUR UNIQUE SPREADSHEET ID HERE [cite: 2026-02-28]
+SHEET_ID = "PASTE_YOUR_LONG_ID_HERE" 
+
+sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
 
@@ -77,7 +78,6 @@ with st.sidebar:
             st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
-                    # Append new row to Google Sheet
                     ws_projects.append_row([new_proj_val])
                     st.rerun()
     
@@ -87,8 +87,7 @@ with st.sidebar:
         search_reg = st.text_input("🔍 Filter Registry")
         st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
         
-        # Fetch project list from cloud
-        p_data = ws_projects.col_values(1)[1:] # Skip header
+        p_data = ws_projects.col_values(1)[1:] 
         filtered_p = [p for p in p_data if search_reg.lower() in p.lower()]
         
         for p_code in filtered_p:
@@ -96,7 +95,6 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1])
             col_c.write(f"**{p_code}**")
             if col_d.button("🗑️", key=f"reg_del_{p_code}"):
-                # Find row index (1-based) and delete
                 row_idx = p_data.index(p_code) + 2 
                 ws_projects.delete_rows(row_idx)
                 st.rerun()
@@ -105,7 +103,6 @@ with st.sidebar:
 # --- TAB 1: 5-DAY SCHEDULE (LIVE) ---
 tab_live, tab_recap, tab_search = st.tabs(["📋 5-Day Schedule (Live)", "📅 10-Day Recap", "🔍 Search Archive"])
 
-# Pre-fetch all logs once at top of run to reduce API overhead
 all_logs = pd.DataFrame(ws_logs.get_all_records())
 
 with tab_live:
@@ -121,7 +118,6 @@ with tab_live:
         is_today = (d == today)
         payday, holiday_name = get_tracker_info(d)
         
-        # Filter local dataframe instead of doing an API query for every day
         day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
         
         with st.container(border=True):
@@ -139,7 +135,6 @@ with tab_live:
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
 
             for idx, entry in day_entries.iterrows():
-                # We use the index from get_all_records() + 2 to find the exact spreadsheet row
                 sheet_row = idx + 2 
                 c_p, c_t, c_h = st.columns([1.5, 3, 1.0])
                 with c_p:
@@ -150,9 +145,9 @@ with tab_live:
                 with c_h:
                     new_h = st.number_input("Hrs", value=float(entry['hours']), step=0.5, key=f"h_{sheet_row}", label_visibility="collapsed")
 
-                # If changed, update the specific row in Google Sheet
+                # FIXED: Swapped 'update_row' for the standard '.update()'
                 if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
-                    ws_logs.update_row(sheet_row, [d_key, new_p, new_t, new_h])
+                    ws_logs.update([[d_key, new_p, new_t, new_h]], f"A{sheet_row}")
                     st.rerun()
 
             with st.popover(f"➕ Add Entry to {d.strftime('%a')}"):
@@ -174,7 +169,6 @@ with tab_live:
                 if not day_entries.empty:
                     st.divider()
                     if st.button(f"🗑️ Clear all for {d.strftime('%a')}", key=f"clear_{d_key}", type="primary", use_container_width=True):
-                        # Delete all rows matching this date
                         rows_to_del = day_entries.index.tolist()
                         for r in reversed(rows_to_del):
                             ws_logs.delete_rows(r + 2)
@@ -185,7 +179,6 @@ with tab_recap:
     st.write("### 10-Day Recap")
     monday_last_week = monday_this_week - timedelta(days=7)
     if not all_logs.empty:
-        # Filter for recent logs only
         recent_logs = all_logs[all_logs['log_date'] >= monday_last_week.strftime("%Y-%m-%d")]
         if not recent_logs.empty:
             recap_df = recent_logs.groupby('log_date').agg({'project_code': lambda x: '<br>'.join(x.fillna('').astype(str)), 'task': lambda x: '<br>'.join(x.fillna('').astype(str)), 'hours': 'sum'}).reset_index().sort_values('log_date', ascending=False)
@@ -202,7 +195,6 @@ with tab_search:
     with col_b: date_range = st.date_input("📅 Date Range", value=(today - timedelta(days=365), today))
     if len(date_range) == 2 and not all_logs.empty:
         start_date, end_date = date_range
-        # Filter the full cloud-synced dataframe locally
         mask = (all_logs['log_date'] >= start_date.strftime("%Y-%m-%d")) & \
                (all_logs['log_date'] <= end_date.strftime("%Y-%m-%d")) & \
                (all_logs['task'].astype(str).str.contains(keyword, case=False) | all_logs['project_code'].astype(str).str.contains(keyword, case=False))
