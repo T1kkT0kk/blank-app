@@ -76,7 +76,6 @@ st.markdown("""
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
     
     #today-marker { scroll-margin-top: 150px; }
-    
     .nav-btn {
         display: flex; align-items: center; justify-content: center;
         width: 100%; padding: 8px 0px; border-radius: 8px;
@@ -86,15 +85,15 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* SURGICAL FIX: Targets only the Delete button in Col 4 and Sidebar Trash */
-    div[data-testid="column"]:nth-of-type(4) button,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        border-radius: 4px !important; padding: 0px !important; width: 34px !important; height: 34px !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important; background-color: transparent !important;
-        display: flex !important; align-items: center !important; justify-content: center !important;
+    /* REFINED DELETE BUTTON: Standard width, fixed height, centered */
+    /* This targets only the buttons in the 4th column of task rows */
+    div[data-testid="column"]:nth-of-type(4) button {
+        height: 38px !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
@@ -119,7 +118,7 @@ with st.sidebar:
         project_list, all_logs = fetch_cloud_data()
         filtered_p = [p for p in project_list if search_reg.lower() in p.lower()]
         for p_code in filtered_p:
-            col_c, col_d = st.columns([4, 1], vertical_alignment="center") # Keep Registry Centered [cite: 2026-02-28]
+            col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             if col_d.button("🗑️", key=f"reg_del_{p_code}"):
                 row_idx = project_list.index(p_code) + 2 
@@ -133,9 +132,10 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
-# FIXED: Vertical Alignment set to "center" for perfect horizontal tracking
+# THE SNAP-TO-GRID Logic
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
+    # Fixed vertical alignment ensures the minus stays centered regardless of window size [cite: 2026-02-28]
     c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
     opts = ["Select Project"] + project_list + ["PTO", "Holiday"]
     
@@ -143,6 +143,7 @@ def entry_row(sheet_row, entry, d_key, project_list):
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
+    # NATIVE DELETE: Standard button, perfectly aligned by the column grid
     if c_d.button("➖", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
