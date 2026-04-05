@@ -127,6 +127,9 @@ with st.sidebar:
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
                     st.session_state.project_list.append(new_proj_val); st.rerun()
+                    
+    # PASTE THIS LINE HERE to separate the two meshes
+    st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
     
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
