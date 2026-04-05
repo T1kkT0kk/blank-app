@@ -5,7 +5,6 @@ import calendar
 import gspread
 from google.oauth2.service_account import Credentials
 import json
-import streamlit.components.v1 as components # New import for stable scrolling
 
 # 1. Page Configuration
 st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
@@ -70,6 +69,16 @@ st.markdown("""
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     .project-stack { color: #00d4ff; font-weight: bold; }
+    
+    /* Styled Anchor Link for Sidebar Navigation [cite: 2026-02-28] */
+    .jump-btn {
+        display: flex; align-items: center; justify-content: center;
+        padding: 8px 16px; background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px; color: white !important; font-weight: 500; text-decoration: none !important;
+        width: 100%; margin-bottom: 10px; transition: border-color 0.3s;
+    }
+    .jump-btn:hover { border-color: #00d4ff; }
+
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -78,19 +87,8 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
-    # IMPROVED: Parent-level scroll script for stable "Jump to Today"
-    if st.button("📍 Jump to Today", use_container_width=True):
-        components.html(
-            """
-            <script>
-                var element = window.parent.document.getElementById('today-marker');
-                if (element) {
-                    element.scrollIntoView({behavior: 'smooth'});
-                }
-            </script>
-            """,
-            height=0,
-        )
+    # NATIVE ANCHOR: Uses browser-level scroll (bypass JS iframe locks) [cite: 2026-02-28]
+    st.markdown('<a href="#today-marker" class="jump-btn">📍 Jump to Today</a>', unsafe_allow_html=True)
     
     st.divider()
     
@@ -155,10 +153,10 @@ with tab_live:
                 payday, holiday_name = get_tracker_info(d)
                 day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
                 
-                # JUMP ANCHOR: Now uses a standard HTML ID
-                if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
+                # FIXED: Marker placed ABOVE the day container for better scroll headroom [cite: 2026-02-28]
+                if is_today: st.markdown('<div id="today-marker" style="position: relative; top: -50px;"></div>', unsafe_allow_html=True)
 
-                # DYNAMIC COLOR LOGIC: Ensures today is highlighted even on weekends
+                # DYNAMIC COLOR LOGIC: Today highlight for both weekday and weekend
                 node_tag = f'<span class="today-node"></span>' if is_today else ''
                 date_display = d.strftime("%A, %b %d")
                 if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
@@ -190,7 +188,7 @@ with tab_live:
                                 ws_logs.append_row([d_key, 'Holiday', h_text, h_val])
                                 st.cache_data.clear(); st.rerun()
 
-# --- SEARCH TAB remains unchanged ---
+# --- SEARCH TAB ---
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
