@@ -18,7 +18,10 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
+
+# ASD|SKY PROJECT TRACKER: Ensure ID is accurate
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
+
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
@@ -75,10 +78,11 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
-    # NAVIGATION FIX: Handles state expansion before scrolling
+    # NAVIGATION FIX: Increments a 'jump_id' to force UI re-render
     if st.button("📍 Jump to Today", use_container_width=True):
-        st.session_state['force_expand_today'] = True
-        st.session_state['scroll_trigger'] = True
+        if 'jump_count' not in st.session_state: st.session_state['jump_count'] = 0
+        st.session_state['jump_count'] += 1
+        st.session_state['scroll_now'] = True
         st.rerun()
     
     st.divider()
@@ -122,22 +126,22 @@ def entry_row(sheet_row, entry, d_key, project_list):
 
 with tab_live:
     today = date.today()
-    start_date = today - timedelta(days=15)
-    week_anchor = start_date - timedelta(days=start_date.weekday())
+    month_start = today - timedelta(days=15)
+    week_anchor = month_start - timedelta(days=month_start.weekday())
+    jump_id = st.session_state.get('jump_count', 0)
     
-    for week_idx in range(6): # Covers the full 31-day rolling range
+    for week_idx in range(6):
         w_start = week_anchor + timedelta(days=week_idx * 7)
         w_end = w_start + timedelta(days=6)
         
         is_current_week = (w_start <= today <= w_end)
         folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
         
-        # ARROW FIX: Unique keys prevent visual/logical state mismatch
-        exp_expanded = is_current_week or st.session_state.get('force_expand_today', False)
-        with st.expander(folder_label, expanded=exp_expanded):
+        # ARROW FIX: 'jump_id' in key forces the expander to reset to its code-defined state [cite: 2026-02-28]
+        with st.expander(folder_label, expanded=is_current_week, key=f"week_{week_idx}_{jump_id}"):
             for i in range(7):
                 d = w_start + timedelta(days=i)
-                if not (start_date <= d <= (start_date + timedelta(days=30))):
+                if not (month_start <= d <= (month_start + timedelta(days=30))):
                     continue
                 
                 d_key = d.strftime("%Y-%m-%d")
@@ -149,7 +153,7 @@ with tab_live:
                 # Scroll Marker
                 if is_today: st.markdown('<div id="today-marker" style="position: relative; top: -100px;"></div>', unsafe_allow_html=True)
 
-                # Pulsing Node for both Weekdays and Weekends
+                # DYNAMIC COLOR LOGIC: Unified pulse node for all headers
                 node_tag = f'<span class="today-node"></span>' if is_today else ''
                 date_display = d.strftime("%A, %b %d")
                 if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
@@ -181,13 +185,12 @@ with tab_live:
                                 ws_logs.append_row([d_key, 'Holiday', h_text, h_val])
                                 st.cache_data.clear(); st.rerun()
 
-    # AFTER-RERUN SCROLL: Ensures smooth jump once folders are open
-    if st.session_state.get('scroll_trigger'):
+    # Smooth scroll after re-render
+    if st.session_state.get('scroll_now'):
         components.html("""<script>window.parent.document.getElementById('today-marker').scrollIntoView({behavior: 'smooth'});</script>""", height=0)
-        st.session_state['scroll_trigger'] = False
-        st.session_state['force_expand_today'] = False
+        st.session_state['scroll_now'] = False
 
-# --- SEARCH TAB remains unchanged ---
+# --- ARCHIVE TAB remains unchanged ---
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
