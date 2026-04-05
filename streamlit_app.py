@@ -55,6 +55,17 @@ def get_tracker_info(d):
 st.markdown("""
     <style>
     .block-container { padding-top: 5rem; }
+    
+    /* NEW: Sticky Tabs Constraint */
+    div[data-testid="stTabList"] {
+        position: sticky;
+        top: 2.875rem; /* Standard Streamlit header height */
+        z-index: 999;
+        background-color: #0e1117; /* Match your theme background */
+        width: 100%;
+        padding-bottom: 10px;
+    }
+
     .custom-header {
         padding: 4px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 2px;
         display: flex; justify-content: flex-start; align-items: center; font-size: 0.9rem;
@@ -180,30 +191,22 @@ def render_day_atomic(d, today):
 with tab_live:
     today = date.today()
     
-    # PAY CYCLE CALCULATIONS
     if today.day <= 15:
         cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
     else:
         cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
-    view_start = cycle_start - timedelta(days=7)
-    view_end = cycle_end + timedelta(days=7)
+    view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
 
-    # COLLAPSIBLE PRIOR BUFFER
     with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
-        for i in range(7):
-            render_day_atomic(view_start + timedelta(days=i), today)
+        for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
 
-    # ACTIVE PAY PERIOD
     st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
     num_days = (cycle_end - cycle_start).days + 1
-    for i in range(num_days):
-        render_day_atomic(cycle_start + timedelta(days=i), today)
+    for i in range(num_days): render_day_atomic(cycle_start + timedelta(days=i), today)
 
-    # COLLAPSIBLE FUTURE BUFFER
     with st.expander(f"⏭️ Next Cycle Buffer ({(cycle_end + timedelta(days=1)).strftime('%b %d')} - {view_end.strftime('%b %d')})", expanded=False):
-        for i in range(7):
-            render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
+        for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
 
 # 5. Archive Tab remains unchanged
 with tab_search:
