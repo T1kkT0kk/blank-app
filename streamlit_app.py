@@ -86,26 +86,23 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* PRECISION TARGETING: Locked Minus Button */
-    div[data-testid="column"]:nth-of-type(4) div[data-testid="stButton"] button {
-        height: 34px !important;
-        width: 34px !important;
+    /* SURGICAL CENTERING: Eliminates the dash drift */
+    div[data-testid="column"]:nth-of-type(4) button,
+    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
+        height: 38px !important;
+        width: 38px !important;
+        min-width: 38px !important;
         margin: 0 auto !important;
-        border-radius: 4px !important;
         padding: 0px !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        background-color: transparent !important;
-        display: flex !important;
+        display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
+        line-height: 1 !important;
+        font-size: 1.2rem !important;
+        background-color: transparent !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
     div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
-
-    /* SIDEBAR TRASH: Centered Square */
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        height: 32px !important; width: 32px !important;
-        display: flex !important; align-items: center !important; justify-content: center !important;
-    }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
@@ -151,8 +148,11 @@ def entry_row(sheet_row, entry, d_key, project_list):
     
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
+    
+    # MANUAL HOURS
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
+    # CENTERING FIX: Button icon is now locked to the center
     if c_d.button("—", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
@@ -185,11 +185,10 @@ def render_day_block(d, project_list, all_logs, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
-            # THE TOOLBAR FIX: Ungrouped buttons side-by-side
+            # SIDE-BY-SIDE TOOLBAR
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             day_idx = d.weekday()
-            # Mon-Thu 9.0, Fri 4.0 [cite: 2026-02-28]
             h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
             
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
