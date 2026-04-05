@@ -84,12 +84,12 @@ st.markdown("""
 
     /* NEW: Payday Countdown Style */
     .payday-countdown {
-        font-size: 0.9rem;
+        font-size: 1.1rem;
         color: #a8e6cf; 
-        margin-top: -18px; 
-        margin-bottom: 12px;
+        margin-top: 0px; 
+        margin-bottom: 20px;
         font-style: italic;
-        font-weight: 500;
+        font-weight: bold;
     }
 
     .custom-header {
