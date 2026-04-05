@@ -146,7 +146,7 @@ with st.sidebar:
         search_reg = st.text_input("🔍 Filter Registry")
         
         # --- PASTE THIS LINE HERE to separate the box and the codes ---
-        st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
         
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
         for p_code in filtered_p:
