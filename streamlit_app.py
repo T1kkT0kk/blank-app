@@ -22,13 +22,19 @@ sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
 
-@st.cache_data(ttl=60)
-def fetch_cloud_data():
+# 3. Data Management Logic
+@st.cache_data(ttl=600) # Increased TTL to reduce cloud trips
+def fetch_initial_data():
     p_list = ws_projects.col_values(1)[1:]
     logs_df = pd.DataFrame(ws_logs.get_all_records())
     return p_list, logs_df
 
-# 3. Tracker Logic (2026 ASD|SKY Calendar)
+# Initialize Session State Buffer
+if 'all_logs' not in st.session_state:
+    p_list, logs_df = fetch_initial_data()
+    st.session_state.project_list = p_list
+    st.session_state.all_logs = logs_df
+
 def get_tracker_info(d):
     last_day = calendar.monthrange(d.year, d.month)[1]
     is_payday = (d.day == 15 or d.day == last_day)
@@ -52,67 +58,30 @@ st.markdown("""
     .header-holiday { background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.4); color: #ff4b4b; }
     .header-standard { color: #888; border-bottom: 1px solid #333; border-radius: 0; }
     .header-weekend { background-color: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); color: #FF9800; }
-    
     .weekend-window { background-color: rgba(255, 152, 0, 0.05); border-radius: 8px; padding: 10px; margin-bottom: 10px; border: 1px dashed rgba(255, 152, 0, 0.2); }
-    
-    .today-node {
-        background-color: #00d4ff; width: 20px; height: 20px; border-radius: 50%;
-        margin-right: 15px; display: inline-block; animation: neon-pulse 2.5s infinite ease-in-out;
-    }
+    .today-node { background-color: #00d4ff; width: 20px; height: 20px; border-radius: 50%; margin-right: 15px; display: inline-block; animation: neon-pulse 2.5s infinite ease-in-out; }
     @keyframes neon-pulse {
         0% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
         50% { box-shadow: 0 0 25px rgba(0, 212, 255, 1.0); background-color: rgba(0, 212, 255, 1.0); }
         100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
-    
-    .active-week-container { 
-        border: 2px solid rgba(0, 212, 255, 0.4); 
-        border-radius: 12px; 
-        padding: 12px 20px; 
-        margin-bottom: 25px;
-        background-color: rgba(0, 212, 255, 0.03);
-    }
+    .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 25px; background-color: rgba(0, 212, 255, 0.03); }
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
-    
     #today-marker { scroll-margin-top: 150px; }
-    
-    .nav-btn {
-        display: flex; align-items: center; justify-content: center;
-        width: 100%; padding: 8px 0px; border-radius: 8px;
-        background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.2);
-        color: white !important; font-size: 0.9rem; font-weight: 400;
-        text-decoration: none !important; transition: border-color 0.2s;
-    }
+    .nav-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 8px 0px; border-radius: 8px; background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.2); color: white !important; font-size: 0.9rem; font-weight: 400; text-decoration: none !important; transition: border-color 0.2s; }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* REFINED DELETE TARGETING: Forces a square box for row and registry delete */
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        height: 38px !important;
-        padding: 0px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-size: 1.5rem !important;
-        line-height: 0 !important;
-        background: transparent !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        height: 38px !important; padding: 0px !important; display: flex !important; align-items: center !important; justify-content: center !important;
+        font-size: 1.5rem !important; line-height: 0 !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        transition: all 0.2s ease-in-out !important;
     }
-    
-    /* THE FORCE-COLOR FIX: Specificity increased to override the default grey shader */
-    /* Target hover, active (for iPhone press), and focus states */
     div[data-testid="column"]:nth-of-type(4) button:hover,
-    div[data-testid="column"]:nth-of-type(4) button:active,
-    div[data-testid="column"]:nth-of-type(4) button:focus,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:hover,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:active,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:focus { 
-        border-color: #ff4b4b !important; 
-        color: #ff4b4b !important;
-        background: rgba(255, 75, 75, 0.2) !important; /* Soft red solid background override */
+    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:hover { 
+        border-color: #ff4b4b !important; color: #ff4b4b !important; background: rgba(255, 75, 75, 0.2) !important;
     }
-
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -129,27 +98,28 @@ with st.sidebar:
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
-                    st.cache_data.clear(); st.rerun()
+                    st.session_state.project_list.append(new_proj_val)
+                    st.rerun()
     
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter")
-        project_list, all_logs = fetch_cloud_data()
-        filtered_p = [p for p in project_list if search_reg.lower() in p.lower()]
+        filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
-            # Registry trash button matches the main viewport delete style
             if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
-                row_idx = project_list.index(p_code) + 2 
+                row_idx = st.session_state.project_list.index(p_code) + 2 
                 ws_projects.delete_rows(row_idx)
-                st.cache_data.clear(); st.rerun()
+                st.session_state.project_list.remove(p_code)
+                st.rerun()
 
 # --- TAB 1: ROLLING MONTH SCHEDULE ---
 tab_live, tab_search = st.tabs(["📅 Rolling Month (Live)", "🔍 Search Archive"])
 
 def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
-    st.cache_data.clear()
+    # Update local session state immediately
+    st.session_state.all_logs.iloc[row_id-2] = [date_str, project, task, hours]
 
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
@@ -160,9 +130,11 @@ def entry_row(sheet_row, entry, d_key, project_list):
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # RECTANGLE BALLOON LOGIC: ensures centering across window resizes
     if c_d.button("-", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
-        ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
+        ws_logs.delete_rows(sheet_row)
+        # Update local buffer instantly
+        st.session_state.all_logs = st.session_state.all_logs.drop(sheet_row-2).reset_index(drop=True)
+        st.rerun()
     
     try:
         new_h = float(raw_h)
@@ -193,19 +165,28 @@ def render_day_block(d, project_list, all_logs, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
-            # SIDE-BY-SIDE TOOLBAR
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             day_idx = d.weekday()
             h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
             
+            # IMPROVED ADD: Optimistic Update
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
-                ws_logs.append_row([d_key, "Select Project", '', h_val]); st.cache_data.clear(); st.rerun()
+                new_row = [d_key, "Select Project", '', h_val]
+                ws_logs.append_row(new_row)
+                st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
+                st.rerun()
             if col2.button("+ PTO", key=f"add_pto_{d_key}", use_container_width=True):
-                ws_logs.append_row([d_key, 'PTO', 'Personal Time Off', h_val]); st.cache_data.clear(); st.rerun()
+                new_row = [d_key, 'PTO', 'Personal Time Off', h_val]
+                ws_logs.append_row(new_row)
+                st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
+                st.rerun()
             if col3.button("+ Holiday", key=f"add_h_{d_key}", use_container_width=True):
                 h_text = holiday_name if holiday_name else "Office Closed"
-                ws_logs.append_row([d_key, 'Holiday', h_text, h_val]); st.cache_data.clear(); st.rerun()
+                new_row = [d_key, 'Holiday', h_text, h_val]
+                ws_logs.append_row(new_row)
+                st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
+                st.rerun()
 
 with tab_live:
     today = date.today()
@@ -221,18 +202,18 @@ with tab_live:
                 for i in range(7):
                     d = w_start + timedelta(days=i)
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
-                    render_day_block(d, project_list, all_logs, today)
+                    render_day_block(d, st.session_state.project_list, st.session_state.all_logs, today)
         else:
             folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
             with st.expander(folder_label, expanded=False):
                 for i in range(7):
                     d = w_start + timedelta(days=i)
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
-                    render_day_block(d, project_list, all_logs, today)
+                    render_day_block(d, st.session_state.project_list, st.session_state.all_logs, today)
 
-# 5. Archive Tab remains unchanged
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
+    all_logs = st.session_state.all_logs
     col_a, col_b = st.columns([2, 2])
     with col_a: keyword = st.text_input("🔍 Search Keyword")
     with col_b: date_range = st.date_input("📅 Date Range", value=(today - timedelta(days=365), today))
