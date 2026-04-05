@@ -5,7 +5,6 @@ import calendar
 import gspread
 from google.oauth2.service_account import Credentials
 import json
-import streamlit.components.v1 as components
 
 # 1. Page Configuration
 st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
@@ -18,10 +17,7 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
-
-# ASD|SKY PROJECT TRACKER: Ensure ID is accurate
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
-
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
@@ -69,7 +65,20 @@ st.markdown("""
         100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
-    .project-stack { color: #00d4ff; font-weight: bold; }
+    
+    /* INSTANT JUMP CSS: Anchor offset for fixed headers [cite: 2026-02-28] */
+    #today-marker { scroll-margin-top: 150px; }
+    
+    /* SIDEBAR BUTTON SYMBOL: Mimics Streamlit native styling [cite: 2026-02-28] */
+    .nav-btn {
+        display: flex; align-items: center; justify-content: center;
+        width: 100%; padding: 8px 0px; border-radius: 8px;
+        background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white !important; font-size: 0.9rem; font-weight: 400;
+        text-decoration: none !important; transition: border-color 0.2s;
+    }
+    .nav-btn:hover { border-color: #00d4ff; }
+
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -78,12 +87,8 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
-    # NAVIGATION FIX: Increments a 'jump_id' to force UI re-render
-    if st.button("📍 Jump to Today", use_container_width=True):
-        if 'jump_count' not in st.session_state: st.session_state['jump_count'] = 0
-        st.session_state['jump_count'] += 1
-        st.session_state['scroll_now'] = True
-        st.rerun()
+    # OPTION 2: Instant Native Anchor [cite: 2026-02-28]
+    st.markdown('<a href="#today-marker" class="nav-btn">📍 Jump to Today</a>', unsafe_allow_html=True)
     
     st.divider()
     
@@ -126,9 +131,8 @@ def entry_row(sheet_row, entry, d_key, project_list):
 
 with tab_live:
     today = date.today()
-    month_start = today - timedelta(days=15)
-    week_anchor = month_start - timedelta(days=month_start.weekday())
-    jump_id = st.session_state.get('jump_count', 0)
+    start_date = today - timedelta(days=15)
+    week_anchor = start_date - timedelta(days=start_date.weekday())
     
     for week_idx in range(6):
         w_start = week_anchor + timedelta(days=week_idx * 7)
@@ -137,11 +141,11 @@ with tab_live:
         is_current_week = (w_start <= today <= w_end)
         folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
         
-        # ARROW FIX: 'jump_id' in key forces the expander to reset to its code-defined state [cite: 2026-02-28]
-        with st.expander(folder_label, expanded=is_current_week, key=f"week_{week_idx}_{jump_id}"):
+        # FIXED: Expander remains stable; Native jump doesn't require a rerun
+        with st.expander(folder_label, expanded=is_current_week):
             for i in range(7):
                 d = w_start + timedelta(days=i)
-                if not (month_start <= d <= (month_start + timedelta(days=30))):
+                if not (start_date <= d <= (start_date + timedelta(days=30))):
                     continue
                 
                 d_key = d.strftime("%Y-%m-%d")
@@ -150,10 +154,10 @@ with tab_live:
                 payday, holiday_name = get_tracker_info(d)
                 day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
                 
-                # Scroll Marker
-                if is_today: st.markdown('<div id="today-marker" style="position: relative; top: -100px;"></div>', unsafe_allow_html=True)
+                # Anchor Point for today [cite: 2026-02-28]
+                if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
 
-                # DYNAMIC COLOR LOGIC: Unified pulse node for all headers
+                # WEEKEND PULSE FIX: Saturday highlight
                 node_tag = f'<span class="today-node"></span>' if is_today else ''
                 date_display = d.strftime("%A, %b %d")
                 if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
@@ -184,11 +188,6 @@ with tab_live:
                                 h_text = holiday_name if holiday_name else "Office Closed"
                                 ws_logs.append_row([d_key, 'Holiday', h_text, h_val])
                                 st.cache_data.clear(); st.rerun()
-
-    # Smooth scroll after re-render
-    if st.session_state.get('scroll_now'):
-        components.html("""<script>window.parent.document.getElementById('today-marker').scrollIntoView({behavior: 'smooth'});</script>""", height=0)
-        st.session_state['scroll_now'] = False
 
 # --- ARCHIVE TAB remains unchanged ---
 with tab_search:
