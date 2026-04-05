@@ -59,7 +59,11 @@ st.markdown("""
     
     /* Removed all Sticky Tab logic */
 
-    [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 30px !important; }
+/* Target the divider line specifically in the sidebar */
+[data-testid="stSidebar"] hr {
+    margin-top: -30px !important; /* Adjust this negative value to snap the line higher */
+    margin-bottom: 10px !important; /* Controls space between the line and the date below */
+}
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
