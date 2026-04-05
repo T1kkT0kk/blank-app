@@ -17,10 +17,7 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
-
-# ASD|SKY PROJECT TRACKER: Ensure ID is accurate
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
-
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
@@ -69,7 +66,7 @@ st.markdown("""
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     
-    /* INTEGRATED HEADER: Blue outlined rectangle */
+    /* THE BLUE RECTANGLE: Integrated Title Block */
     .active-week-container { 
         border: 2px solid rgba(0, 212, 255, 0.4); 
         border-radius: 12px; 
@@ -80,7 +77,6 @@ st.markdown("""
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
     
     #today-marker { scroll-margin-top: 150px; }
-    
     .nav-btn {
         display: flex; align-items: center; justify-content: center;
         width: 100%; padding: 8px 0px; border-radius: 8px;
@@ -90,13 +86,15 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* SURGICAL DELETE STYLING */
-    div[data-testid="stButton"] button {
+    /* SURGICAL FIX: Only target the 4th column (Delete Column) for the square look */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(4) button {
         border-radius: 4px; padding: 0px; width: 32px; height: 32px;
         border: 1px solid rgba(255, 255, 255, 0.2); background-color: transparent;
         display: flex; align-items: center; justify-content: center;
     }
-    div[data-testid="stButton"] button:hover { border-color: #ff4b4b; color: #ff4b4b; }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(4) button:hover { 
+        border-color: #ff4b4b; color: #ff4b4b; 
+    }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
@@ -135,7 +133,6 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
-# UPDATED ROW: Direct hour entry and surgical minus button
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
     c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3])
@@ -147,7 +144,7 @@ def entry_row(sheet_row, entry, d_key, project_list):
     # MANUAL HOURS: Type directly for speed
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # SURGICAL DELETE: Dedicated minus button
+    # SURGICAL DELETE: Repurposed minus button look
     if c_d.button("➖", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
@@ -183,8 +180,10 @@ def render_day_block(d, project_list, all_logs, today):
             with st.popover(f"➕ Add Entry"):
                 col1, col2, col3 = st.columns(3)
                 day_idx = d.weekday()
-                # CORRECTED HOURS: Mon-Thu (0-3) = 9.0, Fri (4) = 4.0 [cite: 2026-02-28]
+                # CORRECTED HOURS: Mon-Thu 9.0, Fri 4.0
                 h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
+                
+                # RESTORED UI: These buttons will no longer be squashed
                 if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
                     ws_logs.append_row([d_key, "Select Project", '', h_val]); st.cache_data.clear(); st.rerun()
                 if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
@@ -216,7 +215,7 @@ with tab_live:
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
 
-# 5. Archive Tab
+# Archive Tab remains unchanged
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
