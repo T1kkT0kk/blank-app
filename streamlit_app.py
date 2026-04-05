@@ -119,7 +119,7 @@ with st.sidebar:
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     
     # PASTE THIS LINE HERE to separate the button bottom surgically [cite: 2026-02-28]
-    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom: 0px;'></div>", unsafe_allow_html=True)
     
     st.divider()
     
