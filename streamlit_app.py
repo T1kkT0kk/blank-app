@@ -151,7 +151,7 @@ def entry_row(sheet_row, entry, d_key, project_list):
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
     # TEXT HYPHEN FIX: Replaces the graphic icon for better typography centering
-    if c_d.button("-", key=f"del_{sheet_row}", help="Delete this entry"):
+    if c_d.button("X", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
     try:
