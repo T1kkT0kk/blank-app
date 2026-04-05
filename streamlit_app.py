@@ -65,8 +65,22 @@ st.markdown("""
         100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
-    .active-week-container { border: 2px solid rgba(0, 212, 255, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 20px; }
-    .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; display: block; }
+    
+    /* THE BLUE RECTANGLE: Integrated Title Block */
+    .active-week-container { 
+        border: 2px solid rgba(0, 212, 255, 0.4); 
+        border-radius: 12px; 
+        padding: 12px 20px; 
+        margin-bottom: 25px;
+        background-color: rgba(0, 212, 255, 0.03);
+    }
+    .active-week-label { 
+        color: #00d4ff; 
+        font-weight: bold; 
+        font-size: 1.1rem; 
+        display: block;
+        text-align: left;
+    }
     
     #today-marker { scroll-margin-top: 150px; }
     .nav-btn {
@@ -81,7 +95,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Sidebar: Project Registry
+# 4. Sidebar
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     st.markdown('<a href="#today-marker" class="nav-btn">📍 Jump to Today</a>', unsafe_allow_html=True)
@@ -114,7 +128,6 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
-# UNIFIED ROW Logic
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
     c_p, c_t, c_h = st.columns([1.5, 3, 1.0])
@@ -125,7 +138,6 @@ def entry_row(sheet_row, entry, d_key, project_list):
     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
         auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
 
-# UNIFIED DAY Logic: Ensures consistency between container and expander branches
 def render_day_block(d, project_list, all_logs, today):
     d_key = d.strftime("%Y-%m-%d")
     is_today = (d == today)
@@ -147,12 +159,7 @@ def render_day_block(d, project_list, all_logs, today):
             elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
             else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
-            
-            # THE FIX: Ensuring entry rows are rendered in ALL branches
-            for idx, entry in day_entries.iterrows(): 
-                entry_row(idx + 2, entry, d_key, project_list)
-            
-            # THE FIX: Restoring the Add Entry button to all weeks
+            for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             with st.popover(f"➕ Add Entry"):
                 col1, col2, col3 = st.columns(3)
                 h_val = 8.0 if day_entries.empty else 0.0
@@ -176,14 +183,13 @@ with tab_live:
         folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
         
         if is_current_week:
-            st.markdown(f'<span class="active-week-label">📂 Current Week: {w_start.strftime("%b %d")} - {w_end.strftime("%b %d")}</span>', unsafe_allow_html=True)
+            # THE UI FIX: Text is now nested inside the blue outlined rectangle
             with st.container():
-                st.markdown('<div class="active-week-container">', unsafe_allow_html=True)
+                st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Current Week: {w_start.strftime("%b %d")} - {w_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
                 for i in range(7):
                     d = w_start + timedelta(days=i)
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
-                st.markdown('</div>', unsafe_allow_html=True)
         else:
             with st.expander(folder_label, expanded=False):
                 for i in range(7):
@@ -191,7 +197,7 @@ with tab_live:
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
 
-# --- ARCHIVE TAB remains unchanged ---
+# --- ARCHIVE TAB ---
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
