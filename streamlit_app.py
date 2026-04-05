@@ -86,19 +86,16 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* PRECISION CENTERING FOR TEXT HYPHEN */
+    /* UPDATED: Removed fixed width for Balloon logic */
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
         height: 38px !important;
-        width: 38px !important;
-        min-width: 38px !important;
         padding: 0px !important;
-        margin: 0 auto !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 1.5rem !important; /* Larger text size for the hyphen */
-        line-height: 0 !important; /* Strips browser-added line spacing */
+        font-size: 1.5rem !important;
+        line-height: 0 !important;
         background-color: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
@@ -129,7 +126,8 @@ with st.sidebar:
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
-            if col_d.button("-", key=f"reg_del_{p_code}"): # Switched to text hyphen
+            # Registry button also uses Balloon logic for consistency
+            if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
                 row_idx = project_list.index(p_code) + 2 
                 ws_projects.delete_rows(row_idx)
                 st.cache_data.clear(); st.rerun()
@@ -150,8 +148,8 @@ def entry_row(sheet_row, entry, d_key, project_list):
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # TEXT HYPHEN FIX: Replaces the graphic icon for better typography centering
-    if c_d.button("X", key=f"del_{sheet_row}", help="Delete this entry"):
+    # BALLOON LOGIC: use_container_width=True ensures perfect native centering
+    if c_d.button("-", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
     try:
@@ -183,7 +181,7 @@ def render_day_block(d, project_list, all_logs, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
-            # UNGROUPED TOOLBAR
+            # TOOLBAR
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             day_idx = d.weekday()
