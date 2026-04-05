@@ -86,7 +86,7 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* UPDATED: Removed fixed width for Balloon logic */
+    /* SURGICAL TARGETING: Delete buttons for rows and registry */
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
         height: 38px !important;
@@ -99,7 +99,14 @@ st.markdown("""
         background-color: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
+    
+    /* UPDATED: Hover state now uses a soft red highlight */
+    div[data-testid="column"]:nth-of-type(4) button:hover,
+    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:hover { 
+        border-color: #ff4b4b !important; 
+        color: #ff4b4b !important;
+        background-color: rgba(255, 75, 75, 0.15) !important;
+    }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
@@ -126,7 +133,6 @@ with st.sidebar:
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
-            # Registry button also uses Balloon logic for consistency
             if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
                 row_idx = project_list.index(p_code) + 2 
                 ws_projects.delete_rows(row_idx)
@@ -148,7 +154,6 @@ def entry_row(sheet_row, entry, d_key, project_list):
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # BALLOON LOGIC: use_container_width=True ensures perfect native centering
     if c_d.button("x", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
@@ -218,7 +223,7 @@ with tab_live:
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
 
-# 5. Archive Tab remains unchanged
+# 5. Archive Tab
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
