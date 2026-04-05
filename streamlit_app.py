@@ -71,7 +71,7 @@ st.markdown("""
         100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
-    .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 25px; background-color: rgba(0, 212, 255, 0.03); }
+    .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 15px; background-color: rgba(0, 212, 255, 0.03); }
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
     #today-marker { scroll-margin-top: 150px; }
     .nav-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 8px 0px; border-radius: 8px; background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.2); color: white !important; font-size: 0.9rem; font-weight: 400; text-decoration: none !important; transition: border-color 0.2s; }
@@ -135,7 +135,6 @@ def render_day_atomic(d, today):
             if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
             elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
             else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
-            
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             
             for idx, entry in day_entries.iterrows():
@@ -183,35 +182,30 @@ with tab_live:
     
     # PAY CYCLE CALCULATIONS
     if today.day <= 15:
-        cycle_start = today.replace(day=1)
-        cycle_end = today.replace(day=15)
+        cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
     else:
-        cycle_start = today.replace(day=16)
-        last_day = calendar.monthrange(today.year, today.month)[1]
-        cycle_end = today.replace(day=last_day)
+        cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
-    # BUFFER CALCULATION: 7 days before and after
     view_start = cycle_start - timedelta(days=7)
     view_end = cycle_end + timedelta(days=7)
-    
-    st.markdown(f'''
-        <div class="active-week-container">
-            <span class="active-week-label">
-                📂 Buffered View: {view_start.strftime("%b %d")} - {view_end.strftime("%b %d")}
-            </span>
-            <span style="font-size: 0.85rem; color: #888;">
-                Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}
-            </span>
-        </div>
-    ''', unsafe_allow_html=True)
-    
-    # Render all days in the buffered range
-    num_days = (view_end - view_start).days + 1
-    for i in range(num_days):
-        d = view_start + timedelta(days=i)
-        render_day_atomic(d, today)
 
-# 5. Archive Tab
+    # COLLAPSIBLE PRIOR BUFFER
+    with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
+        for i in range(7):
+            render_day_atomic(view_start + timedelta(days=i), today)
+
+    # ACTIVE PAY PERIOD
+    st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
+    num_days = (cycle_end - cycle_start).days + 1
+    for i in range(num_days):
+        render_day_atomic(cycle_start + timedelta(days=i), today)
+
+    # COLLAPSIBLE FUTURE BUFFER
+    with st.expander(f"⏭️ Next Cycle Buffer ({(cycle_end + timedelta(days=1)).strftime('%b %d')} - {view_end.strftime('%b %d')})", expanded=False):
+        for i in range(7):
+            render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
+
+# 5. Archive Tab remains unchanged
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     all_logs = st.session_state.all_logs
