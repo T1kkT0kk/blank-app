@@ -130,6 +130,10 @@ with st.sidebar:
     with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
+            
+            # 1. SHIM TO PUSH BUTTON DOWN FROM INPUT [cite: 2026-02-28]
+        st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+            
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
