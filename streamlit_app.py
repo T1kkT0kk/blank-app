@@ -61,7 +61,7 @@ st.markdown("""
 
 /* Target the divider line specifically in the sidebar */
 [data-testid="stSidebar"] hr {
-    margin-top: -30px !important; /* Adjust this negative value to snap the line higher */
+    margin-top: 30px !important; /* Adjust this negative value to snap the line higher */
     margin-bottom: 10px !important; /* Controls space between the line and the date below */
 }
     
