@@ -118,7 +118,7 @@ st.markdown("""
     
 # 4. Sidebar
 with st.sidebar:
-    st.title("📂 ASD|SKY Vault")
+    st.title("📂 ASD|SKY Task Tracker")
     st.divider()
     
     today_val = date.today()
