@@ -66,10 +66,12 @@ st.markdown("""
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     
-    /* INSTANT JUMP CSS: Anchor offset for fixed headers [cite: 2026-02-28] */
+    /* Active Week Highlighting [cite: 2026-02-28] */
+    .active-week-container { border: 2px solid rgba(0, 212, 255, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 20px; }
+    .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; display: block; }
+    
     #today-marker { scroll-margin-top: 150px; }
     
-    /* SIDEBAR BUTTON SYMBOL: Mimics Streamlit native styling [cite: 2026-02-28] */
     .nav-btn {
         display: flex; align-items: center; justify-content: center;
         width: 100%; padding: 8px 0px; border-radius: 8px;
@@ -86,10 +88,7 @@ st.markdown("""
 # 4. Sidebar: Project Registry
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
-    
-    # OPTION 2: Instant Native Anchor [cite: 2026-02-28]
     st.markdown('<a href="#today-marker" class="nav-btn">📍 Jump to Today</a>', unsafe_allow_html=True)
-    
     st.divider()
     
     with st.expander("✨ New Project Number", expanded=False):
@@ -137,57 +136,77 @@ with tab_live:
     for week_idx in range(6):
         w_start = week_anchor + timedelta(days=week_idx * 7)
         w_end = w_start + timedelta(days=6)
-        
         is_current_week = (w_start <= today <= w_end)
         folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
         
-        # FIXED: Expander remains stable; Native jump doesn't require a rerun
-        with st.expander(folder_label, expanded=is_current_week):
-            for i in range(7):
-                d = w_start + timedelta(days=i)
-                if not (start_date <= d <= (start_date + timedelta(days=30))):
-                    continue
-                
-                d_key = d.strftime("%Y-%m-%d")
-                is_today = (d == today)
-                is_weekend = (d.weekday() >= 5)
-                payday, holiday_name = get_tracker_info(d)
-                day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
-                
-                # Anchor Point for today [cite: 2026-02-28]
-                if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
+        # LOGIC CHANGE: Current week is a Container (Always Open); others are Expanders
+        if is_current_week:
+            st.markdown(f'<span class="active-week-label">📂 Current Week: {w_start.strftime("%b %d")} - {w_end.strftime("%b %d")}</span>', unsafe_allow_html=True)
+            with st.container():
+                st.markdown('<div class="active-week-container">', unsafe_allow_html=True)
+                for i in range(7):
+                    d = w_start + timedelta(days=i)
+                    if not (start_date <= d <= (start_date + timedelta(days=30))): continue
+                    
+                    d_key = d.strftime("%Y-%m-%d")
+                    is_today = (d == today)
+                    is_weekend = (d.weekday() >= 5)
+                    payday, holiday_name = get_tracker_info(d)
+                    day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
+                    
+                    if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
+                    node_tag = f'<span class="today-node"></span>' if is_today else ''
+                    date_display = d.strftime("%A, %b %d")
+                    if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
 
-                # WEEKEND PULSE FIX: Saturday highlight
-                node_tag = f'<span class="today-node"></span>' if is_today else ''
-                date_display = d.strftime("%A, %b %d")
-                if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
+                    if is_weekend:
+                        st.markdown(f'<div class="custom-header header-weekend">{node_tag}{date_display} — Weekend</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="weekend-window"><b>PN:</b> Weekend &nbsp; | &nbsp; <b>Activity:</b> Weekend</div>', unsafe_allow_html=True)
+                    else:
+                        with st.container(border=True):
+                            if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
+                            elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
+                            else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
+                            st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
+                            for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
+                            with st.popover(f"➕ Add Entry"):
+                                col1, col2, col3 = st.columns(3)
+                                h_val = 8.0 if day_entries.empty else 0.0
+                                if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
+                                    ws_logs.append_row([d_key, project_list[0], '', h_val]); st.cache_data.clear(); st.rerun()
+                                if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
+                                    ws_logs.append_row([d_key, 'PTO', 'Personal Time Off', h_val]); st.cache_data.clear(); st.rerun()
+                                if col3.button("Holiday", key=f"add_h_{d_key}", use_container_width=True):
+                                    h_text = holiday_name if holiday_name else "Office Closed"
+                                    ws_logs.append_row([d_key, 'Holiday', h_text, h_val]); st.cache_data.clear(); st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        else:
+            with st.expander(folder_label, expanded=False):
+                for i in range(7):
+                    d = w_start + timedelta(days=i)
+                    if not (start_date <= d <= (start_date + timedelta(days=30))): continue
+                    
+                    d_key = d.strftime("%Y-%m-%d")
+                    is_today = (d == today)
+                    is_weekend = (d.weekday() >= 5)
+                    payday, holiday_name = get_tracker_info(d)
+                    day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
+                    
+                    node_tag = f'<span class="today-node"></span>' if is_today else ''
+                    date_display = d.strftime("%A, %b %d")
+                    if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
 
-                if is_weekend:
-                    st.markdown(f'<div class="custom-header header-weekend">{node_tag}{date_display} — Weekend</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="weekend-window"><b>PN:</b> Weekend &nbsp; | &nbsp; <b>Activity:</b> Weekend</div>', unsafe_allow_html=True)
-                else:
-                    with st.container(border=True):
-                        if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
-                        elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
-                        else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
-
-                        st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
-                        for idx, entry in day_entries.iterrows():
-                            entry_row(idx + 2, entry, d_key, project_list)
-
-                        with st.popover(f"➕ Add Entry"):
-                            col1, col2, col3 = st.columns(3)
-                            h_val = 8.0 if day_entries.empty else 0.0
-                            if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
-                                ws_logs.append_row([d_key, project_list[0], '', h_val])
-                                st.cache_data.clear(); st.rerun()
-                            if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
-                                ws_logs.append_row([d_key, 'PTO', 'Personal Time Off', h_val])
-                                st.cache_data.clear(); st.rerun()
-                            if col3.button("Holiday", key=f"add_h_{d_key}", use_container_width=True):
-                                h_text = holiday_name if holiday_name else "Office Closed"
-                                ws_logs.append_row([d_key, 'Holiday', h_text, h_val])
-                                st.cache_data.clear(); st.rerun()
+                    if is_weekend:
+                        st.markdown(f'<div class="custom-header header-weekend">{node_tag}{date_display} — Weekend</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="weekend-window"><b>PN:</b> Weekend &nbsp; | &nbsp; <b>Activity:</b> Weekend</div>', unsafe_allow_html=True)
+                    else:
+                        with st.container(border=True):
+                            if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
+                            elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
+                            else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
+                            st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
+                            for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
 
 # --- ARCHIVE TAB remains unchanged ---
 with tab_search:
