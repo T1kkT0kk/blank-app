@@ -149,7 +149,7 @@ def entry_row(sheet_row, entry, d_key, project_list):
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
     # BALLOON LOGIC: use_container_width=True ensures perfect native centering
-    if c_d.button("-", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
+    if c_d.button("x", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
     try:
