@@ -127,19 +127,13 @@ with st.sidebar:
     
     st.divider()
     
-with st.expander("✨ Register Project Number", expanded=False):
+    with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
-            
-            # SURGICAL SHIM: Ensure this starts at the same line as the text_input
-            st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-            
-            # This line (137) must be perfectly aligned with the line above
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
-                    st.session_state.project_list.append(new_proj_val)
-                    st.rerun()
+                    st.session_state.project_list.append(new_proj_val); st.rerun()
                     
     # PASTE THIS LINE HERE to separate the two meshes
     st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
