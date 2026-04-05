@@ -5,11 +5,12 @@ import calendar
 import gspread
 from google.oauth2.service_account import Credentials
 import json
+import streamlit.components.v1 as components # New import for stable scrolling
 
 # 1. Page Configuration
 st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
 
-# 2. Cloud Engine: Optimized Connection
+# 2. Cloud Engine
 def get_gsheet_client():
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds_info = json.loads(st.secrets["gcp_service_account"])
@@ -17,12 +18,14 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
+
+# ASD|SKY PROJECT TRACKER: Ensure ID is accurate
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
+
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
 
-# --- PERFORMANCE CACHE: Prevents constant downloading ---
 @st.cache_data(ttl=60)
 def fetch_cloud_data():
     p_list = ws_projects.col_values(1)[1:]
@@ -41,7 +44,7 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Refined Architectural Layout & Weekend Overlay ---
+# --- CSS: Refined Architectural Layout ---
 st.markdown("""
     <style>
     .block-container { padding-top: 5rem; }
@@ -65,7 +68,7 @@ st.markdown("""
         50% { box-shadow: 0 0 25px rgba(0, 212, 255, 1.0); background-color: rgba(0, 212, 255, 1.0); }
         100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
     }
-    .today-date-text { color: #00d4ff; font-weight: 800; }
+    .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     .project-stack { color: #00d4ff; font-weight: bold; }
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
@@ -75,9 +78,19 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
-    # JUMP TO TODAY [cite: 2026-02-28]
+    # IMPROVED: Parent-level scroll script for stable "Jump to Today"
     if st.button("📍 Jump to Today", use_container_width=True):
-        st.markdown('<script>window.location.hash = "#today-marker";</script>', unsafe_allow_html=True)
+        components.html(
+            """
+            <script>
+                var element = window.parent.document.getElementById('today-marker');
+                if (element) {
+                    element.scrollIntoView({behavior: 'smooth'});
+                }
+            </script>
+            """,
+            height=0,
+        )
     
     st.divider()
     
@@ -104,7 +117,6 @@ with st.sidebar:
 # --- TAB 1: ROLLING MONTH SCHEDULE ---
 tab_live, tab_search = st.tabs(["📅 Rolling Month (Live)", "🔍 Search Archive"])
 
-# AUTO-SYNC HELPER: Pushes changes without manual button [cite: 2026-02-28]
 def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
@@ -113,22 +125,15 @@ def auto_sync_log(row_id, date_str, project, task, hours):
 def entry_row(sheet_row, entry, d_key, project_list):
     c_p, c_t, c_h = st.columns([1.5, 3, 1.0])
     opts = project_list + ["PTO", "Holiday"]
-    
-    # On-Change trigger
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     new_h = c_h.number_input("Hrs", value=float(entry['hours']), step=0.5, key=f"h_{sheet_row}", label_visibility="collapsed")
-    
     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
         auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
 
 with tab_live:
     today = date.today()
-    # ROLLING WINDOW: -15 days to +15 days [cite: 2026-02-28]
     month_start = today - timedelta(days=15)
-    
-    # Group by weeks to keep UI scannable [cite: 2026-02-28]
-    # We find the Monday of the start week to ensure clean folders
     week_anchor = month_start - timedelta(days=month_start.weekday())
     
     for week_idx in range(5):
@@ -141,7 +146,6 @@ with tab_live:
         with st.expander(folder_label, expanded=is_current_week):
             for i in range(7):
                 d = w_start + timedelta(days=i)
-                # Clip to the 31-day rolling range [cite: 2026-02-28]
                 if not (month_start <= d <= (month_start + timedelta(days=30))):
                     continue
                 
@@ -151,21 +155,19 @@ with tab_live:
                 payday, holiday_name = get_tracker_info(d)
                 day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
                 
-                # Jump Anchor [cite: 2026-02-28]
+                # JUMP ANCHOR: Now uses a standard HTML ID
                 if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
 
-                # WEEKEND VIEW: Orange, non-editable [cite: 2026-02-28]
+                # DYNAMIC COLOR LOGIC: Ensures today is highlighted even on weekends
+                node_tag = f'<span class="today-node"></span>' if is_today else ''
+                date_display = d.strftime("%A, %b %d")
+                if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
+
                 if is_weekend:
-                    st.markdown(f'<div class="custom-header header-weekend">{d.strftime("%A, %b %d")} — Weekend</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="custom-header header-weekend">{node_tag}{date_display} — Weekend</div>', unsafe_allow_html=True)
                     st.markdown(f'<div class="weekend-window"><b>PN:</b> Weekend &nbsp; | &nbsp; <b>Activity:</b> Weekend</div>', unsafe_allow_html=True)
-                
-                # WEEKDAY VIEW
                 else:
                     with st.container(border=True):
-                        node_tag = f'<span class="today-node"></span>' if is_today else ''
-                        date_display = d.strftime("%A, %b %d")
-                        if is_today: date_display = f'<span class="today-date-text">{date_display}</span>'
-                        
                         if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
                         elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
                         else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
@@ -188,6 +190,7 @@ with tab_live:
                                 ws_logs.append_row([d_key, 'Holiday', h_text, h_val])
                                 st.cache_data.clear(); st.rerun()
 
+# --- SEARCH TAB remains unchanged ---
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
