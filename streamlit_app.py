@@ -85,17 +85,6 @@ st.markdown("""
         text-decoration: none !important; transition: border-color 0.2s;
     }
     .nav-btn:hover { border-color: #00d4ff; }
-
-    /* SURGICAL FIX: Only target the 4th column (Delete Column) for the square look */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(4) button {
-        border-radius: 4px; padding: 0px; width: 32px; height: 32px;
-        border: 1px solid rgba(255, 255, 255, 0.2); background-color: transparent;
-        display: flex; align-items: center; justify-content: center;
-    }
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(4) button:hover { 
-        border-color: #ff4b4b; color: #ff4b4b; 
-    }
-
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -133,6 +122,7 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
+# UPDATED ROW: Logic reverted to standard minus button
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
     c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3])
@@ -141,10 +131,10 @@ def entry_row(sheet_row, entry, d_key, project_list):
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     
-    # MANUAL HOURS: Type directly for speed
+    # DIRECT ENTRY: Type directly for speed
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # SURGICAL DELETE: Repurposed minus button look
+    # REVERTED LOGIC: Standard surgical delete button
     if c_d.button("➖", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
@@ -183,7 +173,7 @@ def render_day_block(d, project_list, all_logs, today):
                 # CORRECTED HOURS: Mon-Thu 9.0, Fri 4.0
                 h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
                 
-                # RESTORED UI: These buttons will no longer be squashed
+                # STANDARD BUTTONS: These will no longer be squashed
                 if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
                     ws_logs.append_row([d_key, "Select Project", '', h_val]); st.cache_data.clear(); st.rerun()
                 if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
