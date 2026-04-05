@@ -65,6 +65,7 @@ st.markdown("""
         100% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
+    
     .active-week-container { 
         border: 2px solid rgba(0, 212, 255, 0.4); 
         border-radius: 12px; 
@@ -120,27 +121,31 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
-# ROW Logic with Individual Delete Button
+# UPDATED: Entry Row with direct hour entry and surgical delete
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
-    # Added 4th column for individual delete button [cite: 2026-02-28]
-    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.8, 0.2])
+    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3])
     
-    # "Select Project" added as a top-level placeholder [cite: 2026-02-28]
     opts = ["Select Project"] + project_list + ["PTO", "Holiday"]
     
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-    new_h = c_h.number_input("Hrs", value=float(entry['hours']), step=0.5, key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # INDIVIDUAL DELETE: Minus sign button at the end of the row [cite: 2026-02-28]
+    # MANUAL ENTRY: Replaced stepper with text input for speed
+    raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
+    
+    # REPURPOSED: Minus button for individual deletion
     if c_d.button("➖", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row)
         st.cache_data.clear()
         st.rerun()
     
-    if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
-        auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
+    try:
+        new_h = float(raw_h)
+        if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
+            auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
+    except ValueError:
+        pass # Ignore non-numeric input until corrected [cite: 2026-02-28]
 
 def render_day_block(d, project_list, all_logs, today):
     d_key = d.strftime("%Y-%m-%d")
@@ -167,12 +172,12 @@ def render_day_block(d, project_list, all_logs, today):
             
             with st.popover(f"➕ Add Entry"):
                 col1, col2, col3 = st.columns(3)
-                
-                # REFINED HOURS: Mon-Thu (0-3) = 9.0, Fri (4) = 4.0 [cite: 2026-02-28]
                 day_idx = d.weekday()
+                
+                # CORRECTED DEFAULT HOURS: Mon-Thu 9.0, Fri 4.0
                 h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
                 
-                # "Select Project" as the default string [cite: 2026-02-28]
+                # DEFAULT ENTRY: Set to "Select Project" placeholder
                 if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
                     ws_logs.append_row([d_key, "Select Project", '', h_val]); st.cache_data.clear(); st.rerun()
                 if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
@@ -206,6 +211,7 @@ with tab_live:
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
 
+# Archive Tab logic remains unchanged
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
