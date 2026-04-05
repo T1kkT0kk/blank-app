@@ -17,10 +17,7 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
-
-# ASD|SKY PROJECT TRACKER: Ensure ID is accurate
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
-
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
@@ -89,11 +86,10 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* SURGICAL TARGETING: Fixes squashed Add Entry buttons */
-    /* Only targets column 4 (task minus) and sidebar column 2 (registry trash can) */
+    /* SURGICAL FIX: Targets only the Delete button in Col 4 and Sidebar Trash */
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        border-radius: 4px !important; padding: 0px !important; width: 32px !important; height: 32px !important;
+        border-radius: 4px !important; padding: 0px !important; width: 34px !important; height: 34px !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important; background-color: transparent !important;
         display: flex !important; align-items: center !important; justify-content: center !important;
     }
@@ -123,7 +119,7 @@ with st.sidebar:
         project_list, all_logs = fetch_cloud_data()
         filtered_p = [p for p in project_list if search_reg.lower() in p.lower()]
         for p_code in filtered_p:
-            col_c, col_d = st.columns([4, 1])
+            col_c, col_d = st.columns([4, 1], vertical_alignment="center") # Keep Registry Centered [cite: 2026-02-28]
             col_c.write(f"**{p_code}**")
             if col_d.button("🗑️", key=f"reg_del_{p_code}"):
                 row_idx = project_list.index(p_code) + 2 
@@ -137,19 +133,16 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
+# FIXED: Vertical Alignment set to "center" for perfect horizontal tracking
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
-    # Column 4 (0.3) is our target for the minus sign
-    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3])
+    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
     opts = ["Select Project"] + project_list + ["PTO", "Holiday"]
     
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-    
-    # DIRECT ENTRY HOURS
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # PERFECT MINUS SIGN: Kept exactly as requested
     if c_d.button("➖", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
@@ -183,7 +176,6 @@ def render_day_block(d, project_list, all_logs, today):
             for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
             with st.popover(f"➕ Add Entry"):
-                # POP OVER UI: Now renders correctly with full-width buttons
                 col1, col2, col3 = st.columns(3)
                 day_idx = d.weekday()
                 h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
@@ -218,7 +210,7 @@ with tab_live:
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
 
-# Archive Tab remains unchanged
+# Archive Tab logic remains unchanged
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
