@@ -73,7 +73,7 @@ st.markdown("""
     
     .active-date-display {
         font-size: 1.1rem; font-weight: bold; color: #00d4ff;
-        display: block; margin-top: 15px; margin-bottom: 5px;
+        display: block; margin-top: 15px; margin-bottom: 15px;
     }
 
     .custom-header {
