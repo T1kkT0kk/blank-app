@@ -5,6 +5,7 @@ import calendar
 import gspread
 from google.oauth2.service_account import Credentials
 import json
+import threading 
 
 # 1. Page Configuration
 st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
@@ -33,6 +34,11 @@ if 'all_logs' not in st.session_state:
     p_list, logs_df = fetch_initial_data()
     st.session_state.project_list = p_list
     st.session_state.all_logs = logs_df
+
+# Background Workers
+def bg_append(row_data): ws_logs.append_row(row_data)
+def bg_delete(row_idx): ws_logs.delete_rows(row_idx)
+def bg_update(row_idx, row_data): ws_logs.update([row_data], f"A{row_idx}")
 
 def get_tracker_info(d):
     last_day = calendar.monthrange(d.year, d.month)[1]
@@ -76,7 +82,7 @@ st.markdown("""
         height: 38px !important; padding: 0px !important; display: flex !important; align-items: center !important; justify-content: center !important;
         font-size: 1.5rem !important; line-height: 0 !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; background: rgba(255, 75, 75, 0.2) !important; }
+    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -94,18 +100,19 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
-                ws_projects.delete_rows(st.session_state.project_list.index(p_code) + 2)
+                row_idx = st.session_state.project_list.index(p_code) + 2
+                threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
                 st.session_state.project_list.remove(p_code)
                 st.rerun()
 
-# --- TAB 1: ROLLING MONTH SCHEDULE ---
-tab_live, tab_search = st.tabs(["📅 Rolling Month (Live)", "🔍 Search Archive"])
+# --- TAB 1: PAY CYCLE SCHEDULE ---
+tab_live, tab_search = st.tabs(["📅 Pay Cycle", "🔍 Search Archive"])
 
-def auto_sync_log(row_id, date_str, project, task, hours):
-    ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
-    st.session_state.all_logs.iloc[row_id-2] = [date_str, project, task, hours]
+def auto_sync_log_async(row_id, date_str, project, task, hours):
+    row_data = [date_str, project, task, hours]
+    st.session_state.all_logs.iloc[row_id-2] = row_data
+    threading.Thread(target=bg_update, args=(row_id, row_data), daemon=True).start()
 
-# ATOMIC FRAGMENT: Reruns only one day at a time
 @st.fragment
 def render_day_atomic(d, today):
     d_key = d.strftime("%Y-%m-%d")
@@ -113,7 +120,6 @@ def render_day_atomic(d, today):
     is_weekend = (d.weekday() >= 5)
     payday, holiday_name = get_tracker_info(d)
     
-    # Slice the local buffer for this day
     day_entries = st.session_state.all_logs[st.session_state.all_logs['log_date'] == d_key]
     
     if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
@@ -132,7 +138,6 @@ def render_day_atomic(d, today):
             
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             
-            # Render Entries
             for idx, entry in day_entries.iterrows():
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
@@ -143,61 +148,70 @@ def render_day_atomic(d, today):
                 raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
                 if c_d.button("-", key=f"del_{sheet_row}", use_container_width=True):
-                    ws_logs.delete_rows(sheet_row)
                     st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
-                    st.rerun() # Local fragment rerun is near instant
+                    threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start()
+                    st.rerun()
 
                 try:
                     new_h = float(raw_h)
                     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
-                        auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
+                        auto_sync_log_async(sheet_row, d_key, new_p, new_t, new_h)
                 except ValueError: pass
 
-            # INSTANT ADD BUTTONS: Inside fragment scope
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             h_val = (9.0 if d.weekday() < 4 else 4.0) if day_entries.empty else 0.0
             
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
                 new_row = [d_key, "Select Project", '', h_val]
-                ws_logs.append_row(new_row)
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
+                threading.Thread(target=bg_append, args=(new_row,), daemon=True).start()
                 st.rerun()
             if col2.button("+ PTO", key=f"add_pto_{d_key}", use_container_width=True):
                 new_row = [d_key, 'PTO', 'Personal Time Off', h_val]
-                ws_logs.append_row(new_row)
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
+                threading.Thread(target=bg_append, args=(new_row,), daemon=True).start()
                 st.rerun()
             if col3.button("+ Holiday", key=f"add_h_{d_key}", use_container_width=True):
                 new_row = [d_key, 'Holiday', (holiday_name if holiday_name else "Office Closed"), h_val]
-                ws_logs.append_row(new_row)
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
+                threading.Thread(target=bg_append, args=(new_row,), daemon=True).start()
                 st.rerun()
 
 with tab_live:
     today = date.today()
-    start_date = today - timedelta(days=15)
-    week_anchor = start_date - timedelta(days=start_date.weekday())
-    for week_idx in range(6):
-        w_start = week_anchor + timedelta(days=week_idx * 7)
-        w_end = w_start + timedelta(days=6)
-        is_current_week = (w_start <= today <= w_end)
-        if is_current_week:
-            with st.container():
-                st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Current Week: {w_start.strftime("%b %d")} - {w_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
-                for i in range(7):
-                    d = w_start + timedelta(days=i)
-                    if not (start_date <= d <= (start_date + timedelta(days=30))): continue
-                    render_day_atomic(d, today)
-        else:
-            folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
-            with st.expander(folder_label, expanded=False):
-                for i in range(7):
-                    d = w_start + timedelta(days=i)
-                    if not (start_date <= d <= (start_date + timedelta(days=30))): continue
-                    render_day_atomic(d, today)
+    
+    # PAY CYCLE CALCULATIONS
+    if today.day <= 15:
+        cycle_start = today.replace(day=1)
+        cycle_end = today.replace(day=15)
+    else:
+        cycle_start = today.replace(day=16)
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        cycle_end = today.replace(day=last_day)
+    
+    # BUFFER CALCULATION: 7 days before and after
+    view_start = cycle_start - timedelta(days=7)
+    view_end = cycle_end + timedelta(days=7)
+    
+    st.markdown(f'''
+        <div class="active-week-container">
+            <span class="active-week-label">
+                📂 Buffered View: {view_start.strftime("%b %d")} - {view_end.strftime("%b %d")}
+            </span>
+            <span style="font-size: 0.85rem; color: #888;">
+                Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}
+            </span>
+        </div>
+    ''', unsafe_allow_html=True)
+    
+    # Render all days in the buffered range
+    num_days = (view_end - view_start).days + 1
+    for i in range(num_days):
+        d = view_start + timedelta(days=i)
+        render_day_atomic(d, today)
 
-# 5. Archive Tab remains unchanged
+# 5. Archive Tab
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     all_logs = st.session_state.all_logs
