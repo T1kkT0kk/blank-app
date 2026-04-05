@@ -59,7 +59,7 @@ st.markdown("""
     
     /* Removed all Sticky Tab logic */
 
-    [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 30px !important; }
+    [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 20px !important; }
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
