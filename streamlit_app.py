@@ -51,24 +51,14 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing & Sticky HUD ---
+# --- CSS: Spacing Refinement ---
 st.markdown("""
     <style>
-    /* FIX: Increased padding to clear tabs and header */
-    .block-container { padding-top: 8rem !important; }
+    /* FIX: Lifted tabs by reducing top padding */
+    .block-container { padding-top: 3rem !important; }
     
-    /* FROZEN TABS: Support for iPhone and Desktop */
-    div[data-testid="stTabList"] {
-        position: -webkit-sticky !important;
-        position: sticky !important;
-        top: 2.875rem !important;
-        z-index: 1000 !important;
-        background-color: #0e1117 !important;
-        padding: 10px 0 !important;
-        border-bottom: 1px solid #333 !important;
-    }
-    
-    /* Sidebar Layout Calibration */
+    /* Removed all Sticky Tab logic */
+
     [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 30px !important; }
     
     .nav-btn-link {
@@ -105,7 +95,7 @@ st.markdown("""
     .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 15px; background-color: rgba(0, 212, 255, 0.03); }
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
     
-    #today-marker { scroll-margin-top: 250px; }
+    #today-marker { scroll-margin-top: 150px; }
 
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
@@ -117,18 +107,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Sidebar Reorganization
+# 4. Sidebar
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
-    # ACTIVE TOOLS: Date & Jump
     today_val = date.today()
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     
     st.divider()
     
-    # REGISTRATION: restored expander logic
     with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
@@ -139,7 +127,6 @@ with st.sidebar:
     
     st.divider()
     
-    # REGISTRY LIST
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
