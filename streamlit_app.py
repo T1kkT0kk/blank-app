@@ -104,7 +104,7 @@ st.markdown("""
         font-size: 1.5rem !important; line-height: 0 !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
     div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
-    [data-testid="stSidebar"] .stVerticalBlock { gap: 2rem; }
+    [data-testid="stSidebar"] .stVerticalBlock { gap: 1.25rem; }
     </style>
     """, unsafe_allow_html=True)
 
