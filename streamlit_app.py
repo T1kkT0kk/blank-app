@@ -59,7 +59,7 @@ st.markdown("""
     
     /* Removed all Sticky Tab logic */
 
-    [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 10px !important; }
+    [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 80px !important; }
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
@@ -112,7 +112,6 @@ st.markdown("""
 # 4. Sidebar
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
-    
     st.divider()
     
     today_val = date.today()
