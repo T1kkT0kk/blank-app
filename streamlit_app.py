@@ -132,7 +132,7 @@ with st.sidebar:
             new_proj_val = st.text_input("Project Number & Name")
             
             # --- ADD THIS LINE BELOW TO CREATE THE SPACE ---
-            st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
             
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
