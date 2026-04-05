@@ -17,7 +17,10 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
+
+# ASD|SKY PROJECT TRACKER: Ensure ID is accurate
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
+
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
@@ -66,7 +69,7 @@ st.markdown("""
     }
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     
-    /* THE BLUE RECTANGLE: Integrated Title Block */
+    /* INTEGRATED HEADER: Blue outlined rectangle */
     .active-week-container { 
         border: 2px solid rgba(0, 212, 255, 0.4); 
         border-radius: 12px; 
@@ -87,22 +90,13 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* PRECISION CENTERING: Fixes the 'drift' during resize */
-    /* Target only Column 4 for tasks and Sidebar Column 2 for registry */
-    div[data-testid="column"]:nth-of-type(4) div[data-testid="stButton"] button,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        height: 34px !important;
-        width: 34px !important;
-        margin: 0 auto !important; /* Forces perfect center in the column grid */
-        border-radius: 4px !important;
-        padding: 0px !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        background-color: transparent !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+    /* SURGICAL DELETE STYLING */
+    div[data-testid="stButton"] button {
+        border-radius: 4px; padding: 0px; width: 32px; height: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.2); background-color: transparent;
+        display: flex; align-items: center; justify-content: center;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
+    div[data-testid="stButton"] button:hover { border-color: #ff4b4b; color: #ff4b4b; }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
@@ -127,7 +121,7 @@ with st.sidebar:
         project_list, all_logs = fetch_cloud_data()
         filtered_p = [p for p in project_list if search_reg.lower() in p.lower()]
         for p_code in filtered_p:
-            col_c, col_d = st.columns([4, 1], vertical_alignment="center")
+            col_c, col_d = st.columns([4, 1])
             col_c.write(f"**{p_code}**")
             if col_d.button("🗑️", key=f"reg_del_{p_code}"):
                 row_idx = project_list.index(p_code) + 2 
@@ -141,20 +135,20 @@ def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
     st.cache_data.clear()
 
+# UPDATED ROW: Direct hour entry and surgical minus button
 @st.fragment
 def entry_row(sheet_row, entry, d_key, project_list):
-    # Vertical alignment center keeps all items locked to the same horizontal pivot [cite: 2026-02-28]
-    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
+    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3])
     opts = ["Select Project"] + project_list + ["PTO", "Holiday"]
     
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     
-    # DIRECT ENTRY HOURS: Type directly
+    # MANUAL HOURS: Type directly for speed
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # PERFECT MINUS SIGN: Centered via column-agnostic margins
-    if c_d.button("—", key=f"del_{sheet_row}", help="Delete this entry"):
+    # SURGICAL DELETE: Dedicated minus button
+    if c_d.button("➖", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
     try:
@@ -189,9 +183,8 @@ def render_day_block(d, project_list, all_logs, today):
             with st.popover(f"➕ Add Entry"):
                 col1, col2, col3 = st.columns(3)
                 day_idx = d.weekday()
+                # CORRECTED HOURS: Mon-Thu (0-3) = 9.0, Fri (4) = 4.0 [cite: 2026-02-28]
                 h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
-                
-                # POP OVER UI: Now renders with full horizontal width
                 if col1.button("Project", key=f"add_p_{d_key}", use_container_width=True):
                     ws_logs.append_row([d_key, "Select Project", '', h_val]); st.cache_data.clear(); st.rerun()
                 if col2.button("PTO", key=f"add_pto_{d_key}", use_container_width=True):
@@ -223,7 +216,7 @@ with tab_live:
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
                     render_day_block(d, project_list, all_logs, today)
 
-# Archive Tab logic remains unchanged
+# 5. Archive Tab
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     col_a, col_b = st.columns([2, 2])
