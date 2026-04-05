@@ -86,19 +86,19 @@ st.markdown("""
     }
     .nav-btn:hover { border-color: #00d4ff; }
 
-    /* SURGICAL CENTERING: Eliminates the dash drift */
+    /* PRECISION CENTERING FOR TEXT HYPHEN */
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
         height: 38px !important;
         width: 38px !important;
         min-width: 38px !important;
-        margin: 0 auto !important;
         padding: 0px !important;
-        display: inline-flex !important;
+        margin: 0 auto !important;
+        display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        line-height: 1 !important;
-        font-size: 1.2rem !important;
+        font-size: 1.5rem !important; /* Larger text size for the hyphen */
+        line-height: 0 !important; /* Strips browser-added line spacing */
         background-color: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
@@ -129,7 +129,7 @@ with st.sidebar:
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
-            if col_d.button("🗑️", key=f"reg_del_{p_code}"):
+            if col_d.button("-", key=f"reg_del_{p_code}"): # Switched to text hyphen
                 row_idx = project_list.index(p_code) + 2 
                 ws_projects.delete_rows(row_idx)
                 st.cache_data.clear(); st.rerun()
@@ -148,12 +148,10 @@ def entry_row(sheet_row, entry, d_key, project_list):
     
     new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-    
-    # MANUAL HOURS
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
-    # CENTERING FIX: Button icon is now locked to the center
-    if c_d.button("—", key=f"del_{sheet_row}", help="Delete this entry"):
+    # TEXT HYPHEN FIX: Replaces the graphic icon for better typography centering
+    if c_d.button("-", key=f"del_{sheet_row}", help="Delete this entry"):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
     try:
@@ -185,7 +183,7 @@ def render_day_block(d, project_list, all_logs, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
-            # SIDE-BY-SIDE TOOLBAR
+            # UNGROUPED TOOLBAR
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             day_idx = d.weekday()
