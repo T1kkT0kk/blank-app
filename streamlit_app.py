@@ -17,7 +17,10 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 client = get_gsheet_client()
+
+# ASD|SKY PROJECT TRACKER
 SHEET_ID = "1d94q4Gwb961oDWc9UasPYWc-yXDLi3vX-epx_uHIVY0" 
+
 sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
@@ -100,7 +103,7 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
     
-    /* UPDATED: Hover state now uses a soft red highlight */
+    /* FIX: Added background-color for the soft red highlight */
     div[data-testid="column"]:nth-of-type(4) button:hover,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:hover { 
         border-color: #ff4b4b !important; 
@@ -154,6 +157,7 @@ def entry_row(sheet_row, entry, d_key, project_list):
     new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
     raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
     
+    # BALLOON LOGIC: Perfectly centered natively
     if c_d.button("x", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
         ws_logs.delete_rows(sheet_row); st.cache_data.clear(); st.rerun()
     
@@ -186,7 +190,7 @@ def render_day_block(d, project_list, all_logs, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
-            # TOOLBAR
+            # UNGROUPED TOOLBAR
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             day_idx = d.weekday()
