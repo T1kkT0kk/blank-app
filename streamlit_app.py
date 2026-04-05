@@ -35,13 +35,10 @@ if 'all_logs' not in st.session_state:
     st.session_state.project_list = p_list
     st.session_state.all_logs = logs_df
 
-# --- NEW: Recency Logic ---
-# Extract unique codes from the last 50 logs to identify 'Active' projects
+# Recency Logic
 last_active = st.session_state.all_logs['project_code'].tail(50).unique().tolist()
 recent_projects = [p for p in last_active if p in st.session_state.project_list]
 other_projects = sorted([p for p in st.session_state.project_list if p not in recent_projects])
-
-# This is your new master list: Recents first, then alphabetical the rest
 smart_list = recent_projects + other_projects
 
 # Background Workers
@@ -60,7 +57,7 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing Refinement (Maintained) ---
+# --- CSS: Spacing Refinement ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
@@ -83,6 +80,16 @@ st.markdown("""
     .active-date-display {
         font-size: 1.1rem; font-weight: bold; color: #00d4ff;
         display: block; margin-top: 0px; margin-bottom: 20px;
+    }
+
+    /* NEW: Payday Countdown Style */
+    .payday-countdown {
+        font-size: 0.9rem;
+        color: #a8e6cf; 
+        margin-top: -18px; 
+        margin-bottom: 12px;
+        font-style: italic;
+        font-weight: 500;
     }
 
     .custom-header {
@@ -122,7 +129,23 @@ with st.sidebar:
     st.divider()
     
     today_val = date.today()
+    
+    # --- Payday Countdown Logic ---
+    last_day = calendar.monthrange(today_val.year, today_val.month)[1]
+    if today_val.day < 15:
+        next_pd = today_val.replace(day=15)
+    elif today_val.day == 15 or today_val.day == last_day:
+        next_pd = today_val
+    else:
+        next_pd = today_val.replace(day=last_day)
+    
+    days_left = (next_pd - today_val).days
+    pd_display = f"{days_left} days until payday" if days_left > 0 else "Today is payday! 💰"
+    
+    # Render Date and Countdown
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="payday-countdown">{pd_display}</div>', unsafe_allow_html=True)
+    
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     
     st.markdown("<div style='margin-bottom: 0px;'></div>", unsafe_allow_html=True)
@@ -186,7 +209,7 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # --- UPDATED: Using Smart List in Selectbox ---
+                # Using Smart List in Selectbox
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
