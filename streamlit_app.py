@@ -35,6 +35,15 @@ if 'all_logs' not in st.session_state:
     st.session_state.project_list = p_list
     st.session_state.all_logs = logs_df
 
+# --- NEW: Recency Logic ---
+# Extract unique codes from the last 50 logs to identify 'Active' projects
+last_active = st.session_state.all_logs['project_code'].tail(50).unique().tolist()
+recent_projects = [p for p in last_active if p in st.session_state.project_list]
+other_projects = sorted([p for p in st.session_state.project_list if p not in recent_projects])
+
+# This is your new master list: Recents first, then alphabetical the rest
+smart_list = recent_projects + other_projects
+
 # Background Workers
 def bg_append(row_data): ws_logs.append_row(row_data)
 def bg_delete(row_idx): ws_logs.delete_rows(row_idx)
@@ -51,19 +60,15 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing Refinement ---
+# --- CSS: Spacing Refinement (Maintained) ---
 st.markdown("""
     <style>
-    /* FIX: Lifted tabs by reducing top padding */
     .block-container { padding-top: 3rem !important; }
     
-    /* Removed all Sticky Tab logic */
-
-/* Target the divider line specifically in the sidebar */
-[data-testid="stSidebar"] hr {
-    margin-top: 20px !important; /* Adjust this negative value to snap the line higher */
-    margin-bottom: 30px !important; /* Controls space between the line and the date below */
-}
+    [data-testid="stSidebar"] hr {
+        margin-top: 20px !important; 
+        margin-bottom: 30px !important; 
+    }
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
@@ -71,9 +76,7 @@ st.markdown("""
         background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.1);
         color: white !important; font-size: 0.95rem; font-weight: 500;
         text-decoration: none !important; transition: all 0.2s;
-        margin-top: 14px;
-        margin-bottom: 0px !important;
-        cursor: pointer;
+        margin-top: 14px; margin-bottom: 0px !important; cursor: pointer;
     }
     .nav-btn-link:hover { border-color: #00d4ff; background-color: rgba(0, 212, 255, 0.05); }
     
@@ -122,30 +125,22 @@ with st.sidebar:
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     
-    # PASTE THIS LINE HERE to separate the button bottom surgically [cite: 2026-02-28]
     st.markdown("<div style='margin-bottom: 0px;'></div>", unsafe_allow_html=True)
-    
     st.divider()
     
     with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
-            
-            # --- ADD THIS LINE BELOW TO CREATE THE SPACE ---
             st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
-            
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
                     st.session_state.project_list.append(new_proj_val); st.rerun()
                     
-    # PASTE THIS LINE HERE to separate the two meshes
     st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
     
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
-        
-        # --- PASTE THIS LINE HERE to separate the box and the codes ---
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
         
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
@@ -157,7 +152,7 @@ with st.sidebar:
                 threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
                 st.session_state.project_list.remove(p_code); st.rerun()
 
-# --- MAIN VIEWPORT: RE-ADDED TABS ---
+# --- MAIN VIEWPORT ---
 tab_pay, tab_search = st.tabs(["📅 Pay Cycle Schedule", "🔍 Search Archive"])
 
 def auto_sync_log_async(row_id, date_str, project, task, hours):
@@ -190,7 +185,10 @@ def render_day_atomic(d, today):
             for idx, entry in day_entries.iterrows():
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
-                opts = ["Select Project"] + st.session_state.project_list + ["PTO", "Holiday"]
+                
+                # --- UPDATED: Using Smart List in Selectbox ---
+                opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
+                
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
                 raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
