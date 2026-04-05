@@ -68,7 +68,6 @@ st.markdown("""
         color: white !important; font-size: 0.95rem; font-weight: 500;
         text-decoration: none !important; transition: all 0.2s;
         margin-top: 8px; 
-        margin-bottom: 2px !important;
         cursor: pointer;
     }
     .nav-btn-link:hover { border-color: #00d4ff; background-color: rgba(0, 212, 255, 0.05); }
@@ -126,8 +125,6 @@ with st.sidebar:
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
                     st.session_state.project_list.append(new_proj_val); st.rerun()
-    
-    st.divider()
     
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
