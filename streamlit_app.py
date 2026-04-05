@@ -71,7 +71,7 @@ st.markdown("""
         background-color: #262730; border: 1px solid rgba(255, 255, 255, 0.1);
         color: white !important; font-size: 0.95rem; font-weight: 500;
         text-decoration: none !important; transition: all 0.2s;
-        margin-top: 8px;
+        margin-top: 15px;
         margin-bottom: 0px !important;
         cursor: pointer;
     }
