@@ -68,7 +68,7 @@ st.markdown("""
         color: white !important; font-size: 0.95rem; font-weight: 500;
         text-decoration: none !important; transition: all 0.2s;
         margin-top: 8px;
-        margin-bottom: -18px !important;
+        margin-bottom: 0px !important;
         cursor: pointer;
     }
     .nav-btn-link:hover { border-color: #00d4ff; background-color: rgba(0, 212, 255, 0.05); }
