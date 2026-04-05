@@ -112,7 +112,7 @@ st.markdown("""
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
-
+    
 # 4. Sidebar
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
