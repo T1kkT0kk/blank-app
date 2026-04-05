@@ -112,6 +112,8 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
+    st.divider()
+    
     today_val = date.today()
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
