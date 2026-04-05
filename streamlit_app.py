@@ -22,14 +22,13 @@ sh = client.open_by_key(SHEET_ID)
 ws_projects = sh.worksheet("projects")
 ws_logs = sh.worksheet("logs")
 
-# 3. Data Management Logic
-@st.cache_data(ttl=600) # Increased TTL to reduce cloud trips
+# 3. Data Buffering
+@st.cache_data(ttl=600)
 def fetch_initial_data():
     p_list = ws_projects.col_values(1)[1:]
     logs_df = pd.DataFrame(ws_logs.get_all_records())
     return p_list, logs_df
 
-# Initialize Session State Buffer
 if 'all_logs' not in st.session_state:
     p_list, logs_df = fetch_initial_data()
     st.session_state.project_list = p_list
@@ -76,12 +75,8 @@ st.markdown("""
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
         height: 38px !important; padding: 0px !important; display: flex !important; align-items: center !important; justify-content: center !important;
         font-size: 1.5rem !important; line-height: 0 !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        transition: all 0.2s ease-in-out !important;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button:hover { 
-        border-color: #ff4b4b !important; color: #ff4b4b !important; background: rgba(255, 75, 75, 0.2) !important;
-    }
+    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; background: rgba(255, 75, 75, 0.2) !important; }
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -92,15 +87,6 @@ with st.sidebar:
     st.markdown('<a href="#today-marker" class="nav-btn">📍 Jump to Today</a>', unsafe_allow_html=True)
     st.divider()
     
-    with st.expander("✨ New Project Number", expanded=False):
-        with st.form("new_project_form", clear_on_submit=True):
-            new_proj_val = st.text_input("Project Number & Name")
-            if st.form_submit_button("Save to Registry"):
-                if new_proj_val:
-                    ws_projects.append_row([new_proj_val])
-                    st.session_state.project_list.append(new_proj_val)
-                    st.rerun()
-    
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter")
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
@@ -108,8 +94,7 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
-                row_idx = st.session_state.project_list.index(p_code) + 2 
-                ws_projects.delete_rows(row_idx)
+                ws_projects.delete_rows(st.session_state.project_list.index(p_code) + 2)
                 st.session_state.project_list.remove(p_code)
                 st.rerun()
 
@@ -118,36 +103,18 @@ tab_live, tab_search = st.tabs(["📅 Rolling Month (Live)", "🔍 Search Archiv
 
 def auto_sync_log(row_id, date_str, project, task, hours):
     ws_logs.update([[date_str, project, task, hours]], f"A{row_id}")
-    # Update local session state immediately
     st.session_state.all_logs.iloc[row_id-2] = [date_str, project, task, hours]
 
+# ATOMIC FRAGMENT: Reruns only one day at a time
 @st.fragment
-def entry_row(sheet_row, entry, d_key, project_list):
-    c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
-    opts = ["Select Project"] + project_list + ["PTO", "Holiday"]
-    
-    new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
-    new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-    raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
-    
-    if c_d.button("-", key=f"del_{sheet_row}", help="Delete this entry", use_container_width=True):
-        ws_logs.delete_rows(sheet_row)
-        # Update local buffer instantly
-        st.session_state.all_logs = st.session_state.all_logs.drop(sheet_row-2).reset_index(drop=True)
-        st.rerun()
-    
-    try:
-        new_h = float(raw_h)
-        if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
-            auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
-    except ValueError: pass
-
-def render_day_block(d, project_list, all_logs, today):
+def render_day_atomic(d, today):
     d_key = d.strftime("%Y-%m-%d")
     is_today = (d == today)
     is_weekend = (d.weekday() >= 5)
     payday, holiday_name = get_tracker_info(d)
-    day_entries = all_logs[all_logs['log_date'] == d_key] if not all_logs.empty else pd.DataFrame()
+    
+    # Slice the local buffer for this day
+    day_entries = st.session_state.all_logs[st.session_state.all_logs['log_date'] == d_key]
     
     if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
     node_tag = f'<span class="today-node"></span>' if is_today else ''
@@ -162,15 +129,35 @@ def render_day_block(d, project_list, all_logs, today):
             if payday: st.markdown(f'<div class="custom-header header-payday">{node_tag}{date_display} — PAYDAY 💰</div>', unsafe_allow_html=True)
             elif holiday_name: st.markdown(f'<div class="custom-header header-holiday">{node_tag}{date_display} — {holiday_name} 🏖️</div>', unsafe_allow_html=True)
             else: st.markdown(f'<div class="custom-header header-standard">{node_tag}{date_display}</div>', unsafe_allow_html=True)
-            st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
-            for idx, entry in day_entries.iterrows(): entry_row(idx + 2, entry, d_key, project_list)
             
+            st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
+            
+            # Render Entries
+            for idx, entry in day_entries.iterrows():
+                sheet_row = idx + 2
+                c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
+                opts = ["Select Project"] + st.session_state.project_list + ["PTO", "Holiday"]
+                
+                new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
+                new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
+                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
+                
+                if c_d.button("-", key=f"del_{sheet_row}", use_container_width=True):
+                    ws_logs.delete_rows(sheet_row)
+                    st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
+                    st.rerun() # Local fragment rerun is near instant
+
+                try:
+                    new_h = float(raw_h)
+                    if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
+                        auto_sync_log(sheet_row, d_key, new_p, new_t, new_h)
+                except ValueError: pass
+
+            # INSTANT ADD BUTTONS: Inside fragment scope
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
-            day_idx = d.weekday()
-            h_val = (9.0 if day_idx < 4 else 4.0) if day_entries.empty else 0.0
+            h_val = (9.0 if d.weekday() < 4 else 4.0) if day_entries.empty else 0.0
             
-            # IMPROVED ADD: Optimistic Update
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
                 new_row = [d_key, "Select Project", '', h_val]
                 ws_logs.append_row(new_row)
@@ -182,8 +169,7 @@ def render_day_block(d, project_list, all_logs, today):
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 st.rerun()
             if col3.button("+ Holiday", key=f"add_h_{d_key}", use_container_width=True):
-                h_text = holiday_name if holiday_name else "Office Closed"
-                new_row = [d_key, 'Holiday', h_text, h_val]
+                new_row = [d_key, 'Holiday', (holiday_name if holiday_name else "Office Closed"), h_val]
                 ws_logs.append_row(new_row)
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 st.rerun()
@@ -202,15 +188,16 @@ with tab_live:
                 for i in range(7):
                     d = w_start + timedelta(days=i)
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
-                    render_day_block(d, st.session_state.project_list, st.session_state.all_logs, today)
+                    render_day_atomic(d, today)
         else:
             folder_label = f"Week of {w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}"
             with st.expander(folder_label, expanded=False):
                 for i in range(7):
                     d = w_start + timedelta(days=i)
                     if not (start_date <= d <= (start_date + timedelta(days=30))): continue
-                    render_day_block(d, st.session_state.project_list, st.session_state.all_logs, today)
+                    render_day_atomic(d, today)
 
+# 5. Archive Tab remains unchanged
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
     all_logs = st.session_state.all_logs
