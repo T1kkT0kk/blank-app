@@ -10,10 +10,6 @@ import threading
 # 1. Page Configuration
 st.set_page_config(page_title="ASD|SKY Task Vault", layout="wide")
 
-# Navigation Memory
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = "Pay Cycle"
-
 # 2. Cloud Engine
 def get_gsheet_client():
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -39,7 +35,7 @@ if 'all_logs' not in st.session_state:
     st.session_state.project_list = p_list
     st.session_state.all_logs = logs_df
 
-# Background Workers (Instant UI response) [cite: 2026-02-28]
+# Background Workers
 def bg_append(row_data): ws_logs.append_row(row_data)
 def bg_delete(row_idx): ws_logs.delete_rows(row_idx)
 def bg_update(row_idx, row_data): ws_logs.update([row_data], f"A{row_idx}")
@@ -55,16 +51,25 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing & UI Fixes ---
+# --- CSS: Spacing & Sticky HUD ---
 st.markdown("""
     <style>
-    /* FIX 1: Prevent prior week cropping */
-    .block-container { padding-top: 6.5rem !important; }
+    /* FIX: Increased padding to clear tabs and header */
+    .block-container { padding-top: 8rem !important; }
+    
+    /* FROZEN TABS: Support for iPhone and Desktop */
+    div[data-testid="stTabList"] {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 2.875rem !important;
+        z-index: 1000 !important;
+        background-color: #0e1117 !important;
+        padding: 10px 0 !important;
+        border-bottom: 1px solid #333 !important;
+    }
     
     /* Sidebar Layout Calibration */
-    [data-testid="stSidebar"] .stMarkdown h1 { 
-        margin-bottom: 35px !important; /* Space between Title and Buttons */
-    }
+    [data-testid="stSidebar"] .stMarkdown h1 { margin-bottom: 30px !important; }
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
@@ -76,7 +81,6 @@ st.markdown("""
     }
     .nav-btn-link:hover { border-color: #00d4ff; background-color: rgba(0, 212, 255, 0.05); }
     
-    /* FIX 4: Date Overlap Correction */
     .active-date-display {
         font-size: 1.1rem; font-weight: bold; color: #00d4ff;
         display: block; margin-top: 15px; margin-bottom: 5px;
@@ -101,9 +105,8 @@ st.markdown("""
     .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 15px; background-color: rgba(0, 212, 255, 0.03); }
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
     
-    #today-marker { scroll-margin-top: 220px; }
+    #today-marker { scroll-margin-top: 250px; }
 
-    /* RECTANGLE DELETE */
     div[data-testid="column"]:nth-of-type(4) button,
     [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
         height: 38px !important; padding: 0px !important; display: flex !important; align-items: center !important; justify-content: center !important;
@@ -118,24 +121,14 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD|SKY Vault")
     
-    # 1. Pay Cycle Schedule Button
-    if st.button("📅 Pay Cycle Schedule", key="nav_pay", use_container_width=True):
-        st.session_state.current_page = "Pay Cycle"; st.rerun()
-    
-    # 2. Search Archive Button (No divider between these two per request) [cite: 2026-02-28]
-    if st.button("🔍 Search Archive", key="nav_search", use_container_width=True):
-        st.session_state.current_page = "Search"; st.rerun()
-    
-    st.divider()
-    
-    # 3. Active Date & Jump Tool
+    # ACTIVE TOOLS: Date & Jump
     today_val = date.today()
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     
     st.divider()
     
-    # 4. Register Project Expander
+    # REGISTRATION: restored expander logic
     with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
@@ -146,7 +139,7 @@ with st.sidebar:
     
     st.divider()
     
-    # 5. Project Registry List
+    # REGISTRY LIST
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
@@ -158,7 +151,8 @@ with st.sidebar:
                 threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
                 st.session_state.project_list.remove(p_code); st.rerun()
 
-# --- MAIN ENGINE ---
+# --- MAIN VIEWPORT: RE-ADDED TABS ---
+tab_pay, tab_search = st.tabs(["📅 Pay Cycle Schedule", "🔍 Search Archive"])
 
 def auto_sync_log_async(row_id, date_str, project, task, hours):
     row_data = [date_str, project, task, hours]
@@ -221,8 +215,7 @@ def render_day_atomic(d, today):
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
 
-# 5. Dynamic Rendering
-if st.session_state.current_page == "Pay Cycle":
+with tab_pay:
     today = date.today()
     if today.day <= 15:
         cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
@@ -231,20 +224,17 @@ if st.session_state.current_page == "Pay Cycle":
     
     view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
 
-    # COLLAPSIBLE PRIOR WEEK
     with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
         for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
 
-    # ACTIVE PERIOD
     st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
     num_days = (cycle_end - cycle_start).days + 1
     for i in range(num_days): render_day_atomic(cycle_start + timedelta(days=i), today)
 
-    # COLLAPSIBLE NEXT WEEK
     with st.expander(f"⏭️ Next Cycle Buffer ({(cycle_end + timedelta(days=1)).strftime('%b %d')} - {view_end.strftime('%b %d')})", expanded=False):
         for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
 
-else:
+with tab_search:
     st.write("### 🗄️ Project Task Archive")
     all_logs = st.session_state.all_logs
     col_a, col_b = st.columns([2, 2])
