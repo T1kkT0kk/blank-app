@@ -35,7 +35,7 @@ if 'all_logs' not in st.session_state:
     st.session_state.project_list = p_list
     st.session_state.all_logs = logs_df
 
-# Background Workers
+# Background Workers for speed
 def bg_append(row_data): ws_logs.append_row(row_data)
 def bg_delete(row_idx): ws_logs.delete_rows(row_idx)
 def bg_update(row_idx, row_data): ws_logs.update([row_data], f"A{row_idx}")
@@ -56,14 +56,22 @@ st.markdown("""
     <style>
     .block-container { padding-top: 5rem; }
     
-    /* NEW: Sticky Tabs Constraint */
+    /* NUCLEAR STICKY TABS: Support for iPhone/Safari & Desktop */
     div[data-testid="stTabList"] {
-        position: sticky;
-        top: 2.875rem; /* Standard Streamlit header height */
-        z-index: 999;
-        background-color: #0e1117; /* Match your theme background */
-        width: 100%;
-        padding-bottom: 10px;
+        position: -webkit-sticky !important; /* Safari Support */
+        position: sticky !important;
+        top: 2.875rem !important; /* Docks below standard header */
+        z-index: 1000 !important;
+        background-color: #0e1117 !important;
+        width: 100% !important;
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+        border-bottom: 1px solid #333 !important;
+    }
+    
+    /* VIEWPORT ADJUSTMENT: iPhone specific offset [cite: 2026-02-28] */
+    @media (max-width: 768px) {
+        div[data-testid="stTabList"] { top: 0 !important; }
     }
 
     .custom-header {
