@@ -118,6 +118,9 @@ with st.sidebar:
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     
+    # PASTE THIS LINE HERE to separate the button bottom surgically [cite: 2026-02-28]
+    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+    
     st.divider()
     
     with st.expander("✨ Register Project Number", expanded=False):
