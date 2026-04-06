@@ -124,6 +124,28 @@ st.markdown("""
     }
     div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
+    
+    /* --- ADD THIS TO YOUR CSS BLOCK --- */
+
+/* Ensures the popover '-' looks identical to your original button */
+[data-testid="stSidebar"] [data-testid="stPopover"] > button {
+    height: 38px !important;
+    width: 100% !important;
+    padding: 0px !important;
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1.5rem !important;
+}
+
+/* Red Delete button inside the confirmation popover [cite: 2026-02-28] */
+div[data-testid="stPopoverContent"] button {
+    background-color: #ff4b4b !important;
+    color: white !important;
+}
+    
     </style>
     """, unsafe_allow_html=True)
     
@@ -139,21 +161,18 @@ with st.sidebar:
     elif today_val.day == 15 or today_val.day == last_day_val:
         next_pd = today_val
     else:
-        # Define next_pd for the end of the month if past the 15th
         next_pd = today_val.replace(day=last_day_val)
     
     days_left = (next_pd - today_val).days
     pd_display = f"{days_left} days until payday" if days_left > 0 else "Today is payday! 💰"
     
-    # CORRECTED INDENTATION: Keep these inside the sidebar [cite: 2026-02-28]
+    # Render Date and Countdown
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="payday-countdown">{pd_display}</div>', unsafe_allow_html=True)
-    
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
-    
-    st.markdown("<div style='margin-bottom: 0px;'></div>", unsafe_allow_html=True)
     st.divider()
-    
+
+    # --- RESTORED: Register Project Form ---
     with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
@@ -162,21 +181,26 @@ with st.sidebar:
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
                     st.session_state.project_list.append(new_proj_val); st.rerun()
-                    
+
     st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
-    
+
+    # --- CORRECTED INDENTATION: Project Registry ---
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
         
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
+        
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
-            if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
-                row_idx = st.session_state.project_list.index(p_code) + 2
-                threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
-                st.session_state.project_list.remove(p_code); st.rerun()
+            with col_d:
+                with st.popover("-", help="Delete this project number"):
+                    st.write("⚠️ **Confirm Delete?**")
+                    if st.button("Delete Forever", key=f"confirm_del_{p_code}", use_container_width=True):
+                        row_idx = st.session_state.project_list.index(p_code) + 2
+                        threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
+                        st.session_state.project_list.remove(p_code); st.rerun()
 
 # --- MAIN VIEWPORT ---
 tab_pay, tab_search = st.tabs(["📅 Pay Cycle Schedule", "🔍 Search Archive"])
