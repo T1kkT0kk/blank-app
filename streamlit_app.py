@@ -30,8 +30,7 @@ def fetch_initial_data():
     raw_data = ws_logs.get_all_records()
     logs_df = pd.DataFrame(raw_data)
     
-    # --- COORDINATE SYNC: Absolute Row ID ---
-    # Ensures that 'Delete' always hits the correct row in the spreadsheet [cite: 2026-02-28]
+    # --- FIX FOR KEYERROR: Assign absolute ID before any processing ---
     logs_df['original_row'] = range(2, len(logs_df) + 2)
     
     # Force String to prevent Tuesday-to-Monday shifts
@@ -96,7 +95,6 @@ st.markdown("""
     .header-holiday { background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.4); color: #ff4b4b; }
     .header-standard { color: #888; border-bottom: 1px solid #333; border-radius: 0; }
     .header-weekend { background-color: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); color: #FF9800; }
-    
     .today-node { background-color: #00d4ff; width: 20px; height: 20px; border-radius: 50%; margin-right: 15px; display: inline-block; animation: neon-pulse 2.5s infinite ease-in-out; }
     @keyframes neon-pulse {
         0% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
@@ -115,7 +113,6 @@ st.markdown("""
         background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
         display: flex !important; align-items: center !important; justify-content: center !important;
     }
-    
     div[data-testid="stPopoverContent"] { border: 1px solid rgba(255, 255, 255, 0.1) !important; background-color: #1e1e1e !important; }
     div[data-testid="stPopoverContent"] button { background-color: rgba(255, 255, 255, 0.05) !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; }
     div[data-testid="stPopoverContent"] button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
@@ -128,7 +125,7 @@ with st.sidebar:
     st.title("📂 ASD Task Tracker")
     st.divider()
 
-    # Sync Button
+    # Sync Button to clear cache across devices
     if st.button("🔄 Sync with ASD|SKY Server", use_container_width=True):
         st.cache_data.clear(); st.rerun()
     st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
@@ -165,7 +162,6 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             with col_d:
-                # --- SYMBOL-FREE POPOVER ---
                 with st.popover("", help="Delete project"):
                     st.write("⚠️ **Confirm?**")
                     if st.button("Delete", key=f"reg_del_{p_code}", use_container_width=True): 
@@ -203,19 +199,16 @@ def render_day_atomic(d, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             
             for idx, entry in day_entries.iterrows():
-                # Use Absolute Row ID
+                # --- FIX FOR NAMEERROR: Ensure variables are defined before try block ---
                 sheet_row = int(entry['original_row'])
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                
-                # Decimal Standard format
                 raw_h = c_h.text_input("Hrs", value=f"{float(entry['hours']):.1f}", key=f"h_{sheet_row}", label_visibility="collapsed")
                 
                 with c_d:
-                    # --- EXPANDABLE DELETE BUTTON ---
                     with st.popover("", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
                         if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True):
@@ -233,11 +226,12 @@ def render_day_atomic(d, today):
             col1, col2, col3 = st.columns(3)
             h_val = (9.0 if d.weekday() < 4 else 4.0) if day_entries.empty else 0.0
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
+                # Temporary row ID for local render
                 new_row = [d_key, "Select Project", '', h_val, len(st.session_state.all_logs) + 100]
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row[:-1],), daemon=True).start(); st.rerun()
 
-# --- SYNCED SCHEDULE BLOCK ---
+# --- RESTORED: Pay Cycle Expandable Weeks ---
 with tab_pay:
     today = today_val 
     if today.day <= 15: cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
