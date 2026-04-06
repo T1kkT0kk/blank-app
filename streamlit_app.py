@@ -116,7 +116,7 @@ st.markdown("""
     
     #today-marker { scroll-margin-top: 150px; }
 
-    /* Neutral Arrow Popover Triggers */
+    /* Neutral Symbol-Free Popover Triggers */
     [data-testid="stSidebar"] [data-testid="stPopover"] > button,
     div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
         height: 38px !important;
@@ -127,14 +127,19 @@ st.markdown("""
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 1.2rem !important;
-        color: rgba(255, 255, 255, 0.6) !important;
     }
     
-    /* Confirmation Popover Window Styling [cite: 2026-02-28] */
+    /* Confirmation Popover Window Styling - Neutral */
     div[data-testid="stPopoverContent"] {
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         background-color: #1e1e1e !important;
+    }
+    
+    /* Neutral confirmation buttons [cite: 2026-02-28] */
+    div[data-testid="stPopoverContent"] button {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
@@ -182,8 +187,8 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             with col_d:
-                # UPDATED: Arrow trigger, neutral confirmation
-                with st.popover("❯", help="Delete project"):
+                # Symbol removed from label
+                with st.popover("", help="Delete project"):
                     st.write("⚠️ **Confirm delete?**")
                     if st.button("Confirm", key=f"reg_del_{p_code}", use_container_width=True): 
                         row_idx = st.session_state.project_list.index(p_code) + 2
@@ -229,9 +234,9 @@ def render_day_atomic(d, today):
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
                 raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # UPDATED: Arrow trigger for entry deletion
+                # Symbol removed from label
                 with c_d:
-                    with st.popover("❯", help="Delete entry"):
+                    with st.popover("", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
                         if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True):
                             st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
