@@ -215,9 +215,10 @@ def render_day_atomic(d, today):
                 # Using Smart List in Selectbox
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 
-                new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
-                new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
+                # --- STABILIZE YOUR WIDGET KEYS ---
+                new_p = c_p.selectbox("PN", ..., key=f"p_{d_key}_{sheet_row}", ...)
+                new_t = c_t.text_input("Activity", ..., key=f"t_{d_key}_{sheet_row}", ...)
+                raw_h = c_h.text_input("Hrs", ..., key=f"h_{d_key}_{sheet_row}", ...)
                 
                 if c_d.button("-", key=f"del_{sheet_row}", use_container_width=True):
                     st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
@@ -226,8 +227,13 @@ def render_day_atomic(d, today):
                 try:
                     new_h = float(raw_h)
                     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
+                        # CRITICAL: Lock the value locally so it doesn't 'revert' during the sync lag
+                        st.session_state.all_logs.loc[idx, ['project_code', 'task', 'hours']] = [new_p, new_t, new_h]
+        
+                        # Now push the 'Render' to the Google Sheet background thread
                         auto_sync_log_async(sheet_row, d_key, new_p, new_t, new_h)
-                except ValueError: pass
+                except ValueError: 
+                pass
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
