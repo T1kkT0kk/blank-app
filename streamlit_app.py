@@ -32,8 +32,8 @@ def fetch_initial_data():
     # Force String Type to prevent Tuesday-to-Monday shifts
     logs_df['log_date'] = logs_df['log_date'].astype(str)
     
-    # --- GEOMETRY CLEANUP: Remove Z-fighting duplicates ---
-    # This merges identical rows into one, fixing the doubling on Tuesday
+    # --- GEOMETRY CLEANUP: Remove duplicates ---
+    # Merges identical rows into one to fix doubling issues
     logs_df = logs_df.drop_duplicates().reset_index(drop=True)
     
     return p_list, logs_df
@@ -115,13 +115,11 @@ st.markdown("""
         justify-content: center !important;
     }
     
-    /* Confirmation Popover Window Styling - Neutral */
     div[data-testid="stPopoverContent"] {
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         background-color: #1e1e1e !important;
     }
     
-    /* Neutral confirmation buttons */
     div[data-testid="stPopoverContent"] button {
         background-color: rgba(255, 255, 255, 0.05) !important;
         color: white !important;
@@ -217,13 +215,14 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # Input Elements
+                # --- INPUT ELEMENTS: DECIMAL FORMAT ---
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # Safety-Locked Delete
+                # Forced Decimal Precision for hour inputs
+                raw_h = c_h.text_input("Hrs", value=f"{float(entry['hours']):.1f}", key=f"h_{sheet_row}", label_visibility="collapsed")
+                
                 with c_d:
                     with st.popover("", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
@@ -253,6 +252,7 @@ def render_day_atomic(d, today):
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
 
+# --- TAB: PAY CYCLE WITH EXPANDABLE WEEKS ---
 with tab_pay:
     today = today_val 
     if today.day <= 15:
@@ -261,11 +261,18 @@ with tab_pay:
         cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
     view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
-    for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
+
+    # Expandable Previous Buffer
+    with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
+        for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
+
     st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
     num_days = (cycle_end - cycle_start).days + 1
     for i in range(num_days): render_day_atomic(cycle_start + timedelta(days=i), today)
-    for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
+
+    # Expandable Next Buffer
+    with st.expander(f"⏭️ Next Cycle Buffer ({(cycle_end + timedelta(days=1)).strftime('%b %d')} - {view_end.strftime('%b %d')})", expanded=False):
+        for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
 
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
@@ -283,5 +290,6 @@ with tab_search:
             arch_df = raw_res.groupby('log_date').agg({'project_code': lambda x: '<br>'.join(x.fillna('').astype(str)), 'task': lambda x: '<br>'.join(x.fillna('').astype(str)), 'hours': 'sum'}).reset_index().sort_values('log_date', ascending=False)
             html_arch = "<table class='recap-table'><tr><th>Date</th><th>Project Number</th><th>Description</th><th>Total Hours</th></tr>"
             for _, row in arch_df.iterrows():
-                html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{row['hours']:g}</td></tr>"
+                # Neutral Decimal Standard for the Archive
+                html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{float(row['hours']):.1f}</td></tr>"
             st.markdown(html_arch + "</table>", unsafe_allow_html=True)
