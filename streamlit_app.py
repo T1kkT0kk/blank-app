@@ -29,9 +29,12 @@ def fetch_initial_data():
     p_list = ws_projects.col_values(1)[1:]
     logs_df = pd.DataFrame(ws_logs.get_all_records())
     
-    # --- CRITICAL FIX: FORCE DATE TO STRING ---
-    # This prevents the 'Tuesday entry jumping to Monday' bug by stopping timezone shifting.
+    # Force String Type to prevent Tuesday-to-Monday shifts
     logs_df['log_date'] = logs_df['log_date'].astype(str)
+    
+    # --- GEOMETRY CLEANUP: Remove Z-fighting duplicates ---
+    # This merges identical rows into one, fixing the doubling on Tuesday
+    logs_df = logs_df.drop_duplicates().reset_index(drop=True)
     
     return p_list, logs_df
 
@@ -71,9 +74,7 @@ def get_tracker_info(d):
 st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
-    
     [data-testid="stSidebar"] hr { margin-top: 20px !important; margin-bottom: 30px !important; }
-    
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
         width: 100%; padding: 10px 0px; border-radius: 8px;
@@ -120,7 +121,7 @@ st.markdown("""
         background-color: #1e1e1e !important;
     }
     
-    /* Neutral confirmation buttons (Removed Red) */
+    /* Neutral confirmation buttons */
     div[data-testid="stPopoverContent"] button {
         background-color: rgba(255, 255, 255, 0.05) !important;
         color: white !important;
@@ -130,7 +131,6 @@ st.markdown("""
         border-color: #ff4b4b !important;
         color: #ff4b4b !important;
     }
-
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -176,7 +176,6 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             with col_d:
-                # Neutral trigger
                 with st.popover("", help="Delete project"):
                     st.write("⚠️ **Confirm delete?**")
                     if st.button("Confirm", key=f"reg_del_{p_code}", use_container_width=True): 
@@ -198,7 +197,6 @@ def render_day_atomic(d, today):
     is_today = (d == today)
     is_weekend = (d.weekday() >= 5)
     payday, holiday_name = get_tracker_info(d)
-    # Comparison using forced string d_key
     day_entries = st.session_state.all_logs[st.session_state.all_logs['log_date'] == d_key]
     
     if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
@@ -219,13 +217,13 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # --- RESTORED INPUTS ---
+                # Input Elements
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
                 raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # --- SAFETY-LOCKED DELETE (Symbol-Free) ---
+                # Safety-Locked Delete
                 with c_d:
                     with st.popover("", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
