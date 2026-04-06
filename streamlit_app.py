@@ -28,6 +28,11 @@ ws_logs = sh.worksheet("logs")
 def fetch_initial_data():
     p_list = ws_projects.col_values(1)[1:]
     logs_df = pd.DataFrame(ws_logs.get_all_records())
+    
+    # --- CRITICAL FIX: FORCE DATE TO STRING ---
+    # This prevents the 'Tuesday entry jumping to Monday' bug by stopping timezone shifting.
+    logs_df['log_date'] = logs_df['log_date'].astype(str)
+    
     return p_list, logs_df
 
 if 'all_logs' not in st.session_state:
@@ -62,15 +67,12 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing & UI Sync ---
+# --- CSS: Symbol-Free Minimalist UI ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
     
-    [data-testid="stSidebar"] hr {
-        margin-top: 20px !important; 
-        margin-bottom: 30px !important; 
-    }
+    [data-testid="stSidebar"] hr { margin-top: 20px !important; margin-bottom: 30px !important; }
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
@@ -81,29 +83,13 @@ st.markdown("""
         margin-top: 14px; margin-bottom: 0px !important; cursor: pointer;
     }
     .nav-btn-link:hover { border-color: #00d4ff; background-color: rgba(0, 212, 255, 0.05); }
-    
-    .active-date-display {
-        font-size: 1.1rem; font-weight: bold; color: #00d4ff;
-        display: block; margin-top: 0px; margin-bottom: 20px;
-    }
-
-    .payday-countdown {
-        font-size: 1.1rem;
-        color: #a8e6cf; 
-        margin-top: 0px; 
-        margin-bottom: 20px;
-        font-weight: bold;
-    }
-
-    .custom-header {
-        padding: 4px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 2px;
-        display: flex; justify-content: flex-start; align-items: center; font-size: 0.9rem;
-    }
+    .active-date-display { font-size: 1.1rem; font-weight: bold; color: #00d4ff; display: block; margin-top: 0px; margin-bottom: 20px; }
+    .payday-countdown { font-size: 1.1rem; color: #a8e6cf; margin-top: 0px; margin-bottom: 20px; font-weight: bold; }
+    .custom-header { padding: 4px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 2px; display: flex; justify-content: flex-start; align-items: center; font-size: 0.9rem; }
     .header-payday { background-color: rgba(76, 175, 80, 0.12); border: 1px solid rgba(76, 175, 80, 0.4); color: #4CAF50; }
     .header-holiday { background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.4); color: #ff4b4b; }
     .header-standard { color: #888; border-bottom: 1px solid #333; border-radius: 0; }
     .header-weekend { background-color: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); color: #FF9800; }
-    
     .today-node { background-color: #00d4ff; width: 20px; height: 20px; border-radius: 50%; margin-right: 15px; display: inline-block; animation: neon-pulse 2.5s infinite ease-in-out; }
     @keyframes neon-pulse {
         0% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
@@ -113,7 +99,6 @@ st.markdown("""
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 15px; background-color: rgba(0, 212, 255, 0.03); }
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
-    
     #today-marker { scroll-margin-top: 150px; }
 
     /* Neutral Symbol-Free Popover Triggers */
@@ -135,11 +120,15 @@ st.markdown("""
         background-color: #1e1e1e !important;
     }
     
-    /* Neutral confirmation buttons [cite: 2026-02-28] */
+    /* Neutral confirmation buttons (Removed Red) */
     div[data-testid="stPopoverContent"] button {
-        background-color: rgba(255, 255, 255, 0.1) !important;
+        background-color: rgba(255, 255, 255, 0.05) !important;
         color: white !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    }
+    div[data-testid="stPopoverContent"] button:hover {
+        border-color: #ff4b4b !important;
+        color: #ff4b4b !important;
     }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
@@ -187,7 +176,7 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             with col_d:
-                # Symbol removed from label
+                # Neutral trigger
                 with st.popover("", help="Delete project"):
                     st.write("⚠️ **Confirm delete?**")
                     if st.button("Confirm", key=f"reg_del_{p_code}", use_container_width=True): 
@@ -209,6 +198,7 @@ def render_day_atomic(d, today):
     is_today = (d == today)
     is_weekend = (d.weekday() >= 5)
     payday, holiday_name = get_tracker_info(d)
+    # Comparison using forced string d_key
     day_entries = st.session_state.all_logs[st.session_state.all_logs['log_date'] == d_key]
     
     if is_today: st.markdown('<div id="today-marker"></div>', unsafe_allow_html=True)
@@ -229,12 +219,13 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
+                # --- RESTORED INPUTS ---
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
                 raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # Symbol removed from label
+                # --- SAFETY-LOCKED DELETE (Symbol-Free) ---
                 with c_d:
                     with st.popover("", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
@@ -272,15 +263,11 @@ with tab_pay:
         cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
     view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
-    with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
-        for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
-
+    for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
     st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
     num_days = (cycle_end - cycle_start).days + 1
     for i in range(num_days): render_day_atomic(cycle_start + timedelta(days=i), today)
-
-    with st.expander(f"⏭️ Next Cycle Buffer ({(cycle_end + timedelta(days=1)).strftime('%b %d')} - {view_end.strftime('%b %d')})", expanded=False):
-        for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
+    for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
 
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
