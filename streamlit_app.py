@@ -62,7 +62,7 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing & UI Refinement ---
+# --- CSS: Spacing & UI Sync ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
@@ -116,7 +116,7 @@ st.markdown("""
     
     #today-marker { scroll-margin-top: 150px; }
 
-    /* Global Safety-Lock Button Styling */
+    /* Neutral Arrow Popover Triggers */
     [data-testid="stSidebar"] [data-testid="stPopover"] > button,
     div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
         height: 38px !important;
@@ -127,12 +127,14 @@ st.markdown("""
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 1.5rem !important;
+        font-size: 1.2rem !important;
+        color: rgba(255, 255, 255, 0.6) !important;
     }
-
-    div[data-testid="stPopoverContent"] button {
-        background-color: #ff4b4b !important;
-        color: white !important;
+    
+    /* Confirmation Popover Window Styling [cite: 2026-02-28] */
+    div[data-testid="stPopoverContent"] {
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background-color: #1e1e1e !important;
     }
 
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
@@ -180,9 +182,10 @@ with st.sidebar:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             with col_d:
-                with st.popover("-", help="Delete project"):
-                    st.write("⚠️ **Confirm?**")
-                    if st.button("Delete", key=f"reg_del_{p_code}", use_container_width=True): 
+                # UPDATED: Arrow trigger, neutral confirmation
+                with st.popover("❯", help="Delete project"):
+                    st.write("⚠️ **Confirm delete?**")
+                    if st.button("Confirm", key=f"reg_del_{p_code}", use_container_width=True): 
                         row_idx = st.session_state.project_list.index(p_code) + 2
                         threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
                         st.session_state.project_list.remove(p_code); st.rerun()
@@ -221,22 +224,20 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # --- INPUT DEFINITIONS ---
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
                 raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # --- SAFETY-LOCKED DELETE ---
+                # UPDATED: Arrow trigger for entry deletion
                 with c_d:
-                    with st.popover("-", help="Delete entry"):
+                    with st.popover("❯", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
-                        if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True, type="primary"):
+                        if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True):
                             st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
                             threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start(); st.rerun()
 
                 try:
-                    # new_h uses raw_h defined above
                     new_h = float(raw_h)
                     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
                         auto_sync_log_async(sheet_row, d_key, new_p, new_t, new_h)
