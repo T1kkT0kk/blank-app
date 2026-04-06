@@ -27,7 +27,19 @@ ws_logs = sh.worksheet("logs")
 @st.cache_data(ttl=600)
 def fetch_initial_data():
     p_list = ws_projects.col_values(1)[1:]
-    logs_df = pd.DataFrame(ws_logs.get_all_records())
+    raw_data = ws_logs.get_all_records()
+    logs_df = pd.DataFrame(raw_data)
+    
+    # --- COORDINATE SYNC: Absolute Row ID ---
+    # Ensures that 'Delete' always hits the correct row in the spreadsheet [cite: 2026-02-28]
+    logs_df['original_row'] = range(2, len(logs_df) + 2)
+    
+    # Force String to prevent Tuesday-to-Monday shifts
+    logs_df['log_date'] = logs_df['log_date'].astype(str)
+    
+    # Cleanup duplicates
+    logs_df = logs_df.drop_duplicates(subset=['log_date', 'project_code', 'task', 'hours']).reset_index(drop=True)
+    
     return p_list, logs_df
 
 if 'all_logs' not in st.session_state:
@@ -36,9 +48,8 @@ if 'all_logs' not in st.session_state:
     st.session_state.all_logs = logs_df
 
 # --- SECTION 3.5: GLOBAL TIMEZONE CORRECTION ---
-# Defined at the top level so the Sidebar AND Viewport share one local clock
 utc_now = datetime.utcnow()
-local_now = utc_now - timedelta(hours=4) # UTC-4 for Eastern Daylight Time (Georgia)
+local_now = utc_now - timedelta(hours=4) # UTC-4 for Georgia
 today_val = local_now.date()
 
 # Recency Logic
@@ -63,15 +74,11 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing Refinement ---
+# --- CSS: Symbol-Free UI Sync ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
-    
-    [data-testid="stSidebar"] hr {
-        margin-top: 20px !important; 
-        margin-bottom: 30px !important; 
-    }
+    [data-testid="stSidebar"] hr { margin-top: 20px !important; margin-bottom: 30px !important; }
     
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
@@ -82,24 +89,9 @@ st.markdown("""
         margin-top: 14px; margin-bottom: 0px !important; cursor: pointer;
     }
     .nav-btn-link:hover { border-color: #00d4ff; background-color: rgba(0, 212, 255, 0.05); }
-    
-    .active-date-display {
-        font-size: 1.1rem; font-weight: bold; color: #00d4ff;
-        display: block; margin-top: 0px; margin-bottom: 20px;
-    }
-
-    .payday-countdown {
-        font-size: 1.1rem;
-        color: #a8e6cf; 
-        margin-top: 0px; 
-        margin-bottom: 20px;
-        font-weight: bold;
-    }
-
-    .custom-header {
-        padding: 4px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 2px;
-        display: flex; justify-content: flex-start; align-items: center; font-size: 0.9rem;
-    }
+    .active-date-display { font-size: 1.1rem; font-weight: bold; color: #00d4ff; display: block; margin-top: 0px; margin-bottom: 20px; }
+    .payday-countdown { font-size: 1.1rem; color: #a8e6cf; margin-top: 0px; margin-bottom: 20px; font-weight: bold; }
+    .custom-header { padding: 4px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 2px; display: flex; justify-content: flex-start; align-items: center; font-size: 0.9rem; }
     .header-payday { background-color: rgba(76, 175, 80, 0.12); border: 1px solid rgba(76, 175, 80, 0.4); color: #4CAF50; }
     .header-holiday { background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.4); color: #ff4b4b; }
     .header-standard { color: #888; border-bottom: 1px solid #333; border-radius: 0; }
@@ -114,15 +106,19 @@ st.markdown("""
     .today-date-text { color: #00d4ff !important; font-weight: 800 !important; }
     .active-week-container { border: 2px solid rgba(0, 212, 255, 0.4); border-radius: 12px; padding: 12px 20px; margin-bottom: 15px; background-color: rgba(0, 212, 255, 0.03); }
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
-    
     #today-marker { scroll-margin-top: 150px; }
 
-    div[data-testid="column"]:nth-of-type(4) button,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        height: 38px !important; padding: 0px !important; display: flex !important; align-items: center !important; justify-content: center !important;
-        font-size: 1.5rem !important; line-height: 0 !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    /* Neutral Symbol-Free Popover Triggers */
+    [data-testid="stSidebar"] [data-testid="stPopover"] > button,
+    div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
+        height: 38px !important; width: 100% !important; padding: 0px !important;
+        background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
+    
+    div[data-testid="stPopoverContent"] { border: 1px solid rgba(255, 255, 255, 0.1) !important; background-color: #1e1e1e !important; }
+    div[data-testid="stPopoverContent"] button { background-color: rgba(255, 255, 255, 0.05) !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; }
+    div[data-testid="stPopoverContent"] button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
@@ -131,27 +127,23 @@ st.markdown("""
 with st.sidebar:
     st.title("📂 ASD Task Tracker")
     st.divider()
+
+    # Sync Button
+    if st.button("🔄 Sync with ASD|SKY Server", use_container_width=True):
+        st.cache_data.clear(); st.rerun()
+    st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
     
-    # --- Payday Countdown Logic ---
     last_day_val = calendar.monthrange(today_val.year, today_val.month)[1]
-    if today_val.day < 15:
-        next_pd = today_val.replace(day=15)
-    elif today_val.day == 15 or today_val.day == last_day_val:
-        next_pd = today_val
-    else:
-        # Define next_pd for the end of the month if past the 15th
-        next_pd = today_val.replace(day=last_day_val)
+    if today_val.day < 15: next_pd = today_val.replace(day=15)
+    elif today_val.day == 15 or today_val.day == last_day_val: next_pd = today_val
+    else: next_pd = today_val.replace(day=last_day_val)
     
     days_left = (next_pd - today_val).days
     pd_display = f"{days_left} days until payday" if days_left > 0 else "Today is payday! 💰"
     
-    # CORRECTED INDENTATION: Keep these inside the sidebar [cite: 2026-02-28]
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="payday-countdown">{pd_display}</div>', unsafe_allow_html=True)
-    
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
-    
-    st.markdown("<div style='margin-bottom: 0px;'></div>", unsafe_allow_html=True)
     st.divider()
     
     with st.expander("✨ Register Project Number", expanded=False):
@@ -161,29 +153,31 @@ with st.sidebar:
             if st.form_submit_button("Save to Registry"):
                 if new_proj_val:
                     ws_projects.append_row([new_proj_val])
-                    st.session_state.project_list.append(new_proj_val); st.rerun()
+                    st.cache_data.clear(); st.rerun()
                     
     st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
     
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
-        
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
-            if col_d.button("-", key=f"reg_del_{p_code}", use_container_width=True): 
-                row_idx = st.session_state.project_list.index(p_code) + 2
-                threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
-                st.session_state.project_list.remove(p_code); st.rerun()
+            with col_d:
+                # --- SYMBOL-FREE POPOVER ---
+                with st.popover("", help="Delete project"):
+                    st.write("⚠️ **Confirm?**")
+                    if st.button("Delete", key=f"reg_del_{p_code}", use_container_width=True): 
+                        row_idx = st.session_state.project_list.index(p_code) + 2
+                        threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
+                        st.session_state.project_list.remove(p_code); st.rerun()
 
 # --- MAIN VIEWPORT ---
 tab_pay, tab_search = st.tabs(["📅 Pay Cycle Schedule", "🔍 Search Archive"])
 
 def auto_sync_log_async(row_id, date_str, project, task, hours):
     row_data = [date_str, project, task, hours]
-    st.session_state.all_logs.iloc[row_id-2] = row_data
     threading.Thread(target=bg_update, args=(row_id, row_data), daemon=True).start()
 
 @st.fragment
@@ -209,23 +203,29 @@ def render_day_atomic(d, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             
             for idx, entry in day_entries.iterrows():
-                sheet_row = idx + 2
+                # Use Absolute Row ID
+                sheet_row = int(entry['original_row'])
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # Using Smart List in Selectbox
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
-                
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                if c_d.button("-", key=f"del_{sheet_row}", use_container_width=True):
-                    st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
-                    threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start(); st.rerun()
+                # Decimal Standard format
+                raw_h = c_h.text_input("Hrs", value=f"{float(entry['hours']):.1f}", key=f"h_{sheet_row}", label_visibility="collapsed")
+                
+                with c_d:
+                    # --- EXPANDABLE DELETE BUTTON ---
+                    with st.popover("", help="Delete entry"):
+                        st.write("⚠️ **Confirm?**")
+                        if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True):
+                            st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
+                            threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start(); st.rerun()
 
                 try:
                     new_h = float(raw_h)
                     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
+                        st.session_state.all_logs.loc[idx, ['project_code', 'task', 'hours']] = [new_p, new_t, new_h]
                         auto_sync_log_async(sheet_row, d_key, new_p, new_t, new_h)
                 except ValueError: pass
 
@@ -233,27 +233,15 @@ def render_day_atomic(d, today):
             col1, col2, col3 = st.columns(3)
             h_val = (9.0 if d.weekday() < 4 else 4.0) if day_entries.empty else 0.0
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
-                new_row = [d_key, "Select Project", '', h_val]
+                new_row = [d_key, "Select Project", '', h_val, len(st.session_state.all_logs) + 100]
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
-                threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
-            if col2.button("+ PTO", key=f"add_pto_{d_key}", use_container_width=True):
-                new_row = [d_key, 'PTO', 'Personal Time Off', h_val]
-                st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
-                threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
-            if col3.button("+ Holiday", key=f"add_h_{d_key}", use_container_width=True):
-                new_row = [d_key, 'Holiday', (holiday_name if holiday_name else "Office Closed"), h_val]
-                st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
-                threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
+                threading.Thread(target=bg_append, args=(new_row[:-1],), daemon=True).start(); st.rerun()
 
 # --- SYNCED SCHEDULE BLOCK ---
 with tab_pay:
-    # Use the global local_now today_val
     today = today_val 
-    
-    if today.day <= 15:
-        cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
-    else:
-        cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+    if today.day <= 15: cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
+    else: cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
     view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
 
@@ -283,5 +271,5 @@ with tab_search:
             arch_df = raw_res.groupby('log_date').agg({'project_code': lambda x: '<br>'.join(x.fillna('').astype(str)), 'task': lambda x: '<br>'.join(x.fillna('').astype(str)), 'hours': 'sum'}).reset_index().sort_values('log_date', ascending=False)
             html_arch = "<table class='recap-table'><tr><th>Date</th><th>Project Number</th><th>Description</th><th>Total Hours</th></tr>"
             for _, row in arch_df.iterrows():
-                html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{row['hours']:g}</td></tr>"
+                html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{float(row['hours']):.1f}</td></tr>"
             st.markdown(html_arch + "</table>", unsafe_allow_html=True)
