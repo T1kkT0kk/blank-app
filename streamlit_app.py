@@ -32,8 +32,7 @@ def fetch_initial_data():
     # Force String Type to prevent Tuesday-to-Monday shifts
     logs_df['log_date'] = logs_df['log_date'].astype(str)
     
-    # --- GEOMETRY CLEANUP: Remove Z-fighting duplicates ---
-    # This merges identical rows into one, fixing the doubling on Tuesday
+    # GEOMETRY CLEANUP: Remove duplicates
     logs_df = logs_df.drop_duplicates().reset_index(drop=True)
     
     return p_list, logs_df
@@ -217,13 +216,14 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # Input Elements
+                # --- INPUT ELEMENTS ---
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # Safety-Locked Delete
+                # UPDATED: Force Decimal Format in text input
+                raw_h = c_h.text_input("Hrs", value=f"{float(entry['hours']):.1f}", key=f"h_{sheet_row}", label_visibility="collapsed")
+                
                 with c_d:
                     with st.popover("", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
@@ -283,5 +283,6 @@ with tab_search:
             arch_df = raw_res.groupby('log_date').agg({'project_code': lambda x: '<br>'.join(x.fillna('').astype(str)), 'task': lambda x: '<br>'.join(x.fillna('').astype(str)), 'hours': 'sum'}).reset_index().sort_values('log_date', ascending=False)
             html_arch = "<table class='recap-table'><tr><th>Date</th><th>Project Number</th><th>Description</th><th>Total Hours</th></tr>"
             for _, row in arch_df.iterrows():
-                html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{row['hours']:g}</td></tr>"
+                # UPDATED: Force Decimal Format in Archive
+                html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{row['hours']:.1f}</td></tr>"
             st.markdown(html_arch + "</table>", unsafe_allow_html=True)
