@@ -36,9 +36,8 @@ if 'all_logs' not in st.session_state:
     st.session_state.all_logs = logs_df
 
 # --- SECTION 3.5: GLOBAL TIMEZONE CORRECTION ---
-# Defined at the top level so the Sidebar AND Viewport share one local clock
 utc_now = datetime.utcnow()
-local_now = utc_now - timedelta(hours=4) # UTC-4 for Eastern Daylight Time (Georgia)
+local_now = utc_now - timedelta(hours=4) # UTC-4 for Georgia
 today_val = local_now.date()
 
 # Recency Logic
@@ -63,7 +62,7 @@ def get_tracker_info(d):
     }
     return is_payday, holidays.get(d)
 
-# --- CSS: Spacing Refinement ---
+# --- CSS: Spacing & UI Refinement ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
@@ -117,34 +116,26 @@ st.markdown("""
     
     #today-marker { scroll-margin-top: 150px; }
 
-    div[data-testid="column"]:nth-of-type(4) button,
-    [data-testid="stSidebar"] div[data-testid="column"]:nth-of-type(2) button {
-        height: 38px !important; padding: 0px !important; display: flex !important; align-items: center !important; justify-content: center !important;
-        font-size: 1.5rem !important; line-height: 0 !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    /* Global Safety-Lock Button Styling */
+    [data-testid="stSidebar"] [data-testid="stPopover"] > button,
+    div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
+        height: 38px !important;
+        width: 100% !important;
+        padding: 0px !important;
+        background: transparent !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1.5rem !important;
     }
-    div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
+
+    div[data-testid="stPopoverContent"] button {
+        background-color: #ff4b4b !important;
+        color: white !important;
+    }
+
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
-
-/* Targets the '-' popover buttons in both the Sidebar and the Main Logs */
-[data-testid="stSidebar"] [data-testid="stPopover"] > button,
-div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
-    height: 38px !important;
-    width: 100% !important;
-    padding: 0px !important;
-    background: transparent !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 1.5rem !important;
-}
-
-/* Red Delete button inside the confirmation popover [cite: 2026-02-28] */
-div[data-testid="stPopoverContent"] button {
-    background-color: #ff4b4b !important;
-    color: white !important;
-}
-    
     </style>
     """, unsafe_allow_html=True)
     
@@ -153,7 +144,7 @@ with st.sidebar:
     st.title("📂 ASD Task Tracker")
     st.divider()
     
-    # --- Payday Countdown Logic ---
+    # Payday Countdown Logic
     last_day_val = calendar.monthrange(today_val.year, today_val.month)[1]
     if today_val.day < 15:
         next_pd = today_val.replace(day=15)
@@ -165,13 +156,11 @@ with st.sidebar:
     days_left = (next_pd - today_val).days
     pd_display = f"{days_left} days until payday" if days_left > 0 else "Today is payday! 💰"
     
-    # Render Date and Countdown
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="payday-countdown">{pd_display}</div>', unsafe_allow_html=True)
     st.markdown('<a href="#today-marker" class="nav-btn-link">📍 Jump to Today</a>', unsafe_allow_html=True)
     st.divider()
 
-    # --- RESTORED: Register Project Form ---
     with st.expander("✨ Register Project Number", expanded=False):
         with st.form("new_project_form", clear_on_submit=True):
             new_proj_val = st.text_input("Project Number & Name")
@@ -183,20 +172,17 @@ with st.sidebar:
 
     st.markdown("<div style='margin-bottom: 40px;'></div>", unsafe_allow_html=True)
 
-    # --- CORRECTED INDENTATION: Project Registry ---
     with st.expander("📋 Project Registry", expanded=True):
         search_reg = st.text_input("🔍 Filter Registry")
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
-        
         filtered_p = [p for p in st.session_state.project_list if search_reg.lower() in p.lower()]
-        
         for p_code in filtered_p:
             col_c, col_d = st.columns([4, 1], vertical_alignment="center")
             col_c.write(f"**{p_code}**")
             with col_d:
-                with st.popover("-", help="Delete this project number"):
-                    st.write("⚠️ **Confirm Delete?**")
-                    if st.button("Delete Forever", key=f"confirm_del_{p_code}", use_container_width=True):
+                with st.popover("-", help="Delete project"):
+                    st.write("⚠️ **Confirm?**")
+                    if st.button("Delete", key=f"reg_del_{p_code}", use_container_width=True): 
                         row_idx = st.session_state.project_list.index(p_code) + 2
                         threading.Thread(target=bg_delete, args=(row_idx,), daemon=True).start()
                         st.session_state.project_list.remove(p_code); st.rerun()
@@ -235,18 +221,22 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # ... (selectbox and text inputs remain the same)
+                # --- INPUT DEFINITIONS ---
+                opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
+                new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
+                new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
+                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
                 
-                # REPLACEMENT LOGIC: The Safety-Locked Delete
+                # --- SAFETY-LOCKED DELETE ---
                 with c_d:
-                    with st.popover("-", help="Delete this entry"):
+                    with st.popover("-", help="Delete entry"):
                         st.write("⚠️ **Confirm?**")
                         if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True, type="primary"):
                             st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
-                            threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start()
-                            st.rerun()
+                            threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start(); st.rerun()
 
                 try:
+                    # new_h uses raw_h defined above
                     new_h = float(raw_h)
                     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
                         auto_sync_log_async(sheet_row, d_key, new_p, new_t, new_h)
@@ -268,18 +258,14 @@ def render_day_atomic(d, today):
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
 
-# --- SYNCED SCHEDULE BLOCK ---
 with tab_pay:
-    # Use the global local_now today_val
     today = today_val 
-    
     if today.day <= 15:
         cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
     else:
         cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
     view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
-
     with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
         for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
 
