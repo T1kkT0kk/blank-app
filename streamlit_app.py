@@ -124,11 +124,10 @@ st.markdown("""
     }
     div[data-testid="column"]:nth-of-type(4) button:hover { border-color: #ff4b4b !important; color: #ff4b4b !important; }
     [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
-    
-    /* --- ADD THIS TO YOUR CSS BLOCK --- */
 
-/* Ensures the popover '-' looks identical to your original button */
-[data-testid="stSidebar"] [data-testid="stPopover"] > button {
+/* Targets the '-' popover buttons in both the Sidebar and the Main Logs */
+[data-testid="stSidebar"] [data-testid="stPopover"] > button,
+div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
     height: 38px !important;
     width: 100% !important;
     padding: 0px !important;
@@ -236,16 +235,16 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # Using Smart List in Selectbox
-                opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
+                # ... (selectbox and text inputs remain the same)
                 
-                new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
-                new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                raw_h = c_h.text_input("Hrs", value=str(entry['hours']), key=f"h_{sheet_row}", label_visibility="collapsed")
-                
-                if c_d.button("-", key=f"del_{sheet_row}", use_container_width=True):
-                    st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
-                    threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start(); st.rerun()
+                # REPLACEMENT LOGIC: The Safety-Locked Delete
+                with c_d:
+                    with st.popover("-", help="Delete this entry"):
+                        st.write("⚠️ **Confirm?**")
+                        if st.button("Delete", key=f"del_{sheet_row}", use_container_width=True, type="primary"):
+                            st.session_state.all_logs = st.session_state.all_logs.drop(idx).reset_index(drop=True)
+                            threading.Thread(target=bg_delete, args=(sheet_row,), daemon=True).start()
+                            st.rerun()
 
                 try:
                     new_h = float(raw_h)
