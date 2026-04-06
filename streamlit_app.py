@@ -35,6 +35,12 @@ if 'all_logs' not in st.session_state:
     st.session_state.project_list = p_list
     st.session_state.all_logs = logs_df
 
+# --- SECTION 3.5: GLOBAL TIMEZONE CORRECTION ---
+# Defined at the top level so the Sidebar AND Viewport share one local clock
+utc_now = datetime.utcnow()
+local_now = utc_now - timedelta(hours=4) # UTC-4 for Eastern Daylight Time (Georgia)
+today_val = local_now.date()
+
 # Recency Logic
 last_active = st.session_state.all_logs['project_code'].tail(50).unique().tolist()
 recent_projects = [p for p in last_active if p in st.session_state.project_list]
@@ -82,7 +88,6 @@ st.markdown("""
         display: block; margin-top: 0px; margin-bottom: 20px;
     }
 
-    /* NEW: Payday Countdown Style */
     .payday-countdown {
         font-size: 1.1rem;
         color: #a8e6cf; 
@@ -127,21 +132,20 @@ with st.sidebar:
     st.title("📂 ASD Task Tracker")
     st.divider()
     
-    today_val = date.today()
-    
     # --- Payday Countdown Logic ---
-    last_day = calendar.monthrange(today_val.year, today_val.month)[1]
+    last_day_val = calendar.monthrange(today_val.year, today_val.month)[1]
     if today_val.day < 15:
         next_pd = today_val.replace(day=15)
-    elif today_val.day == 15 or today_val.day == last_day:
+    elif today_val.day == 15 or today_val.day == last_day_val:
         next_pd = today_val
     else:
-        next_pd = today_val.replace(day=last_day)
+        # Define next_pd for the end of the month if past the 15th
+        next_pd = today_val.replace(day=last_day_val)
     
     days_left = (next_pd - today_val).days
     pd_display = f"{days_left} days until payday" if days_left > 0 else "Today is payday! 💰"
     
-    # Render Date and Countdown
+    # CORRECTED INDENTATION: Keep these inside the sidebar [cite: 2026-02-28]
     st.markdown(f'<div class="active-date-display">Today: {today_val.strftime("%A, %b %d")}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="payday-countdown">{pd_display}</div>', unsafe_allow_html=True)
     
@@ -241,8 +245,11 @@ def render_day_atomic(d, today):
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
 
+# --- SYNCED SCHEDULE BLOCK ---
 with tab_pay:
-    today = date.today()
+    # Use the global local_now today_val
+    today = today_val 
+    
     if today.day <= 15:
         cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
     else:
