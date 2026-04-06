@@ -102,8 +102,8 @@ st.markdown("""
     #today-marker { scroll-margin-top: 150px; }
 
     /* Neutral Symbol-Free Popover Triggers */
-    [data-testid="stSidebar"] [data-testid="stPopover"] > button,
-    div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
+    [data-testid=\"stSidebar\"] [data-testid=\"stPopover\"] > button,
+    div[data-testid=\"column\"]:nth-of-type(4) [data-testid=\"stPopover\"] > button {
         height: 38px !important;
         width: 100% !important;
         padding: 0px !important;
@@ -114,23 +114,21 @@ st.markdown("""
         justify-content: center !important;
     }
     
-    /* Confirmation Popover Window Styling - Neutral */
-    div[data-testid="stPopoverContent"] {
+    div[data-testid=\"stPopoverContent\"] {
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         background-color: #1e1e1e !important;
     }
     
-    /* Neutral confirmation buttons */
-    div[data-testid="stPopoverContent"] button {
+    div[data-testid=\"stPopoverContent\"] button {
         background-color: rgba(255, 255, 255, 0.05) !important;
         color: white !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
     }
-    div[data-testid="stPopoverContent"] button:hover {
+    div[data-testid=\"stPopoverContent\"] button:hover {
         border-color: #ff4b4b !important;
         color: #ff4b4b !important;
     }
-    [data-testid="stSidebar"] .stVerticalBlock { gap: 0rem; }
+    [data-testid=\"stSidebar\"].stVerticalBlock { gap: 0rem; }
     </style>
     """, unsafe_allow_html=True)
     
@@ -139,7 +137,6 @@ with st.sidebar:
     st.title("📂 ASD Task Tracker")
     st.divider()
     
-    # Payday Countdown Logic
     last_day_val = calendar.monthrange(today_val.year, today_val.month)[1]
     if today_val.day < 15:
         next_pd = today_val.replace(day=15)
@@ -216,12 +213,9 @@ def render_day_atomic(d, today):
                 sheet_row = idx + 2
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
-                # --- INPUT ELEMENTS ---
                 opts = ["Select Project"] + smart_list + ["PTO", "Holiday"]
                 new_p = c_p.selectbox("PN", options=opts, index=opts.index(entry['project_code']) if entry['project_code'] in opts else 0, key=f"p_{sheet_row}", label_visibility="collapsed")
                 new_t = c_t.text_input("Activity", value=entry['task'], key=f"t_{sheet_row}", label_visibility="collapsed")
-                
-                # UPDATED: Force Decimal Format in text input
                 raw_h = c_h.text_input("Hrs", value=f"{float(entry['hours']):.1f}", key=f"h_{sheet_row}", label_visibility="collapsed")
                 
                 with c_d:
@@ -253,6 +247,7 @@ def render_day_atomic(d, today):
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row,), daemon=True).start(); st.rerun()
 
+# --- RESTORED: Pay Cycle with Expanders ---
 with tab_pay:
     today = today_val 
     if today.day <= 15:
@@ -261,11 +256,18 @@ with tab_pay:
         cycle_start = today.replace(day=16); cycle_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     
     view_start = cycle_start - timedelta(days=7); view_end = cycle_end + timedelta(days=7)
-    for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
+
+    # RESTORED: Previous Cycle Buffer
+    with st.expander(f"⏮️ Previous Cycle Buffer ({view_start.strftime('%b %d')} - {(cycle_start - timedelta(days=1)).strftime('%b %d')})", expanded=False):
+        for i in range(7): render_day_atomic(view_start + timedelta(days=i), today)
+
     st.markdown(f'<div class="active-week-container"><span class="active-week-label">📂 Official Pay Period: {cycle_start.strftime("%b %d")} - {cycle_end.strftime("%b %d")}</span></div>', unsafe_allow_html=True)
     num_days = (cycle_end - cycle_start).days + 1
     for i in range(num_days): render_day_atomic(cycle_start + timedelta(days=i), today)
-    for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
+
+    # RESTORED: Next Cycle Buffer
+    with st.expander(f"⏭️ Next Cycle Buffer ({(cycle_end + timedelta(days=1)).strftime('%b %d')} - {view_end.strftime('%b %d')})", expanded=False):
+        for i in range(7): render_day_atomic(cycle_end + timedelta(days=1) + timedelta(days=i), today)
 
 with tab_search:
     st.write("### 🗄️ Project Task Archive")
@@ -283,6 +285,5 @@ with tab_search:
             arch_df = raw_res.groupby('log_date').agg({'project_code': lambda x: '<br>'.join(x.fillna('').astype(str)), 'task': lambda x: '<br>'.join(x.fillna('').astype(str)), 'hours': 'sum'}).reset_index().sort_values('log_date', ascending=False)
             html_arch = "<table class='recap-table'><tr><th>Date</th><th>Project Number</th><th>Description</th><th>Total Hours</th></tr>"
             for _, row in arch_df.iterrows():
-                # UPDATED: Force Decimal Format in Archive
                 html_arch += f"<tr><td>{pd.to_datetime(row['log_date']).strftime('%b %d, %Y')}</td><td class='project-stack'>{row['project_code']}</td><td>{row['task']}</td><td>{row['hours']:.1f}</td></tr>"
             st.markdown(html_arch + "</table>", unsafe_allow_html=True)
