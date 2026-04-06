@@ -28,14 +28,18 @@ ws_logs = sh.worksheet("logs")
 def fetch_initial_data():
     p_list = ws_projects.col_values(1)[1:]
     
-    # --- UPDATED: TRACK ORIGINAL ROW ID ---
+    # Fetch raw records
     raw_data = ws_logs.get_all_records()
     logs_df = pd.DataFrame(raw_data)
     
-    # Assign an absolute row ID before de-duplication [cite: 2026-02-28]
+    # --- CRITICAL FIX: ASSIGN ABSOLUTE ROW ID ---
+    # This prevents the 'KeyError' by ensuring every row has an ID before de-duplication
     logs_df['original_row'] = range(2, len(logs_df) + 2)
     
+    # Force String Type to prevent Tuesday-to-Monday shifts
     logs_df['log_date'] = logs_df['log_date'].astype(str)
+    
+    # Remove identical duplicate entries
     logs_df = logs_df.drop_duplicates(subset=['log_date', 'project_code', 'task', 'hours']).reset_index(drop=True)
     
     return p_list, logs_df
@@ -47,7 +51,7 @@ if 'all_logs' not in st.session_state:
 
 # --- SECTION 3.5: GLOBAL TIMEZONE CORRECTION ---
 utc_now = datetime.utcnow()
-local_now = utc_now - timedelta(hours=4) # UTC-4 for Georgia
+local_now = utc_now - timedelta(hours=4) # UTC-4 for Eastern Time
 today_val = local_now.date()
 
 # Recency Logic
@@ -77,6 +81,7 @@ st.markdown("""
     <style>
     .block-container { padding-top: 3rem !important; }
     [data-testid="stSidebar"] hr { margin-top: 20px !important; margin-bottom: 30px !important; }
+    
     .nav-btn-link {
         display: flex; align-items: center; justify-content: center;
         width: 100%; padding: 10px 0px; border-radius: 8px;
@@ -93,6 +98,7 @@ st.markdown("""
     .header-holiday { background-color: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.4); color: #ff4b4b; }
     .header-standard { color: #888; border-bottom: 1px solid #333; border-radius: 0; }
     .header-weekend { background-color: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3); color: #FF9800; }
+    
     .today-node { background-color: #00d4ff; width: 20px; height: 20px; border-radius: 50%; margin-right: 15px; display: inline-block; animation: neon-pulse 2.5s infinite ease-in-out; }
     @keyframes neon-pulse {
         0% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); background-color: rgba(0, 212, 255, 0.7); }
@@ -104,6 +110,7 @@ st.markdown("""
     .active-week-label { color: #00d4ff; font-weight: bold; font-size: 1.1rem; display: block; text-align: left; }
     #today-marker { scroll-margin-top: 150px; }
 
+    /* Neutral Symbol-Free Popover Triggers */
     [data-testid="stSidebar"] [data-testid="stPopover"] > button,
     div[data-testid="column"]:nth-of-type(4) [data-testid="stPopover"] > button {
         height: 38px !important; width: 100% !important; padding: 0px !important;
@@ -123,7 +130,7 @@ with st.sidebar:
     st.title("📂 ASD Task Tracker")
     st.divider()
     
-    # --- REFRESH ACTION: CLEAR CACHE ---
+    # --- SYNC ACTION: CLEAR CACHE ---
     if st.button("🔄 Sync with ASD|SKY Server", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -172,7 +179,6 @@ with st.sidebar:
 tab_pay, tab_search = st.tabs(["📅 Pay Cycle Schedule", "🔍 Search Archive"])
 
 def auto_sync_log_async(row_id, date_str, project, task, hours):
-    # Only update Google Sheets
     row_data = [date_str, project, task, hours]
     threading.Thread(target=bg_update, args=(row_id, row_data), daemon=True).start()
 
@@ -199,7 +205,7 @@ def render_day_atomic(d, today):
             st.markdown("<div style='margin-bottom: -18px;'></div>", unsafe_allow_html=True)
             
             for idx, entry in day_entries.iterrows():
-                # --- UPDATED: USE ORIGINAL_ROW FOR ABSOLUTE COORDS ---
+                # --- FIXED: Use Absolute Row ID ---
                 sheet_row = int(entry['original_row'])
                 c_p, c_t, c_h, c_d = st.columns([1.5, 3, 0.7, 0.3], vertical_alignment="center")
                 
@@ -220,7 +226,6 @@ def render_day_atomic(d, today):
                 try:
                     new_h = float(raw_h)
                     if new_p != entry['project_code'] or new_t != entry['task'] or new_h != float(entry['hours']):
-                        # Store locally AND push to sheet
                         st.session_state.all_logs.loc[idx, ['project_code', 'task', 'hours']] = [new_p, new_t, new_h]
                         auto_sync_log_async(sheet_row, d_key, new_p, new_t, new_h)
                 except ValueError: pass
@@ -229,11 +234,12 @@ def render_day_atomic(d, today):
             col1, col2, col3 = st.columns(3)
             h_val = (9.0 if d.weekday() < 4 else 4.0) if day_entries.empty else 0.0
             if col1.button("+ Project", key=f"add_p_{d_key}", use_container_width=True):
-                new_row = [d_key, "Select Project", '', h_val, len(st.session_state.all_logs) + 2]
+                # Temporary row ID for new entries
+                new_row = [d_key, "Select Project", '', h_val, len(st.session_state.all_logs) + 100]
                 st.session_state.all_logs = pd.concat([st.session_state.all_logs, pd.DataFrame([new_row], columns=st.session_state.all_logs.columns)], ignore_index=True)
                 threading.Thread(target=bg_append, args=(new_row[:-1],), daemon=True).start(); st.rerun()
 
-# --- TAB: PAY CYCLE ---
+# --- TAB: PAY CYCLE WITH EXPANDERS ---
 with tab_pay:
     today = today_val 
     if today.day <= 15: cycle_start = today.replace(day=1); cycle_end = today.replace(day=15)
